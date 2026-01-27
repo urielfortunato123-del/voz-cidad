@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +10,7 @@ interface HeaderProps {
   showBack?: boolean;
   showLocation?: { uf: string; city: string } | null;
   onLocationClick?: () => void;
+  showThemeToggle?: boolean;
   rightContent?: React.ReactNode;
   className?: string;
 }
@@ -18,6 +20,7 @@ export function Header({
   showBack = false, 
   showLocation,
   onLocationClick,
+  showThemeToggle = true,
   rightContent,
   className 
 }: HeaderProps) {
@@ -55,6 +58,7 @@ export function Header({
               <span className="truncate max-w-[100px]">{showLocation.city}</span>
             </Button>
           )}
+          {showThemeToggle && <ThemeToggle />}
           {rightContent}
         </div>
       </div>

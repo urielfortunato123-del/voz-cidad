@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, List, Building2, FileText, MapPin, ChevronRight } from 'lucide-react';
+import { PlusCircle, List, Building2, BarChart3, Map, ChevronRight, MapPin, Search } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ProtocolSearch } from '@/components/ProtocolSearch';
 import { getSelectedLocation, clearSelectedLocation } from '@/lib/device';
-import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 const MENU_ITEMS = [
@@ -22,6 +22,20 @@ const MENU_ITEMS = [
     title: 'Ver Denúncias',
     description: 'Denúncias da sua cidade',
     color: 'bg-secondary/10 text-secondary',
+  },
+  {
+    path: '/mapa',
+    icon: Map,
+    title: 'Mapa',
+    description: 'Visualizar no mapa',
+    color: 'bg-info/10 text-info',
+  },
+  {
+    path: '/estatisticas',
+    icon: BarChart3,
+    title: 'Estatísticas',
+    description: 'Dashboard da cidade',
+    color: 'bg-success/10 text-success',
   },
   {
     path: '/orgaos',
@@ -63,6 +77,17 @@ export default function Home() {
             O que você gostaria de fazer hoje?
           </p>
         </div>
+        
+        {/* Protocol Search */}
+        <Card className="card-elevated mb-6">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground mb-3">
+              <Search className="h-4 w-4 inline mr-1" />
+              Acompanhar denúncia
+            </p>
+            <ProtocolSearch />
+          </CardContent>
+        </Card>
         
         {/* Location Card */}
         <Card className="card-elevated mb-6">

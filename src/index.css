@@ -78,6 +78,13 @@
     /* Info */
     --info: 210 65% 50%;
     --info-foreground: 0 0% 100%;
+    
+    /* Chart colors */
+    --chart-1: 152 45% 32%;
+    --chart-2: 210 65% 45%;
+    --chart-3: 45 85% 55%;
+    --chart-4: 145 55% 40%;
+    --chart-5: 340 65% 47%;
 
     /* Sidebar */
     --sidebar-background: 0 0% 100%;

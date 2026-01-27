@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { CalendarIcon, MapPin, Loader2 } from 'lucide-react';
+import { CalendarIcon, MapPin, Loader2, Mic } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { FileUploader } from '@/components/FileUploader';
+import { VoiceInput } from '@/components/VoiceInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -197,10 +198,19 @@ export default function NewReport() {
           
           {/* Description */}
           <div className="space-y-2">
-            <Label className="form-label">Descrição *</Label>
+            <div className="flex items-center justify-between">
+              <Label className="form-label">Descrição *</Label>
+              <VoiceInput 
+                onTranscript={(text) => {
+                  const current = watch('description') || '';
+                  setValue('description', current + (current ? ' ' : '') + text);
+                }}
+                className="h-9 w-9"
+              />
+            </div>
             <Textarea
               {...register('description')}
-              placeholder="Descreva o problema com detalhes..."
+              placeholder="Descreva o problema com detalhes... (ou use o microfone)"
               className="min-h-[150px] text-base"
               maxLength={1000}
             />
@@ -208,7 +218,7 @@ export default function NewReport() {
               {errors.description ? (
                 <p className="text-destructive">{errors.description.message}</p>
               ) : (
-                <span />
+                <span className="text-xs text-muted-foreground">💡 Toque no microfone para ditar</span>
               )}
               <span className={cn(
                 'text-muted-foreground',
