@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Copy, FileText, Share2, Loader2 } from 'lucide-react';
+import { Mail, Copy, FileText, Eye, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { AgencyCard } from '@/components/AgencyCard';
+import { PDFPreview } from '@/components/PDFPreview';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,14 +16,18 @@ import {
 import { useReport, useReportEvidences } from '@/hooks/useReports';
 import { useAgencies, type Agency } from '@/hooks/useAgencies';
 import { generateEmailContent, openMailto, copyToClipboard } from '@/lib/email';
-import { generateReportPDF, sharePDF } from '@/lib/pdf';
+import { generateReportPDF } from '@/lib/pdf';
 import { AGENCY_SCOPES, type CategoryKey } from '@/lib/constants';
 import { toast } from 'sonner';
+import type jsPDF from 'jspdf';
 
 export default function ForwardReport() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [generatedPdf, setGeneratedPdf] = useState<jsPDF | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   const { data: report, isLoading: loadingReport } = useReport(id || null);
   const { data: evidences } = useReportEvidences(id || null);
@@ -66,33 +71,42 @@ export default function ForwardReport() {
     }
   };
   
-  const handleSharePDF = async () => {
+  const handleOpenPdfPreview = async () => {
     if (!report) return;
     
-    const pdf = await generateReportPDF({
-      protocol: report.protocol,
-      uf: report.uf,
-      city: report.city,
-      category: report.category as CategoryKey,
-      title: report.title || undefined,
-      description: report.description,
-      occurred_at: report.occurred_at,
-      address_text: report.address_text || undefined,
-      lat: report.lat || undefined,
-      lng: report.lng || undefined,
-      is_anonymous: report.is_anonymous,
-      author_name: report.author_name || undefined,
-      author_contact: report.author_contact || undefined,
-      created_at: report.created_at,
-      evidences: evidences?.map(e => ({ 
-        file_name: e.file_name, 
-        file_url: e.file_url,
-        file_type: e.file_type,
-        created_at: e.created_at 
-      })),
-    });
+    setPdfPreviewOpen(true);
+    setIsGeneratingPdf(true);
     
-    sharePDF(pdf, `denuncia-${report.protocol}.pdf`);
+    try {
+      const pdf = await generateReportPDF({
+        protocol: report.protocol,
+        uf: report.uf,
+        city: report.city,
+        category: report.category as CategoryKey,
+        title: report.title || undefined,
+        description: report.description,
+        occurred_at: report.occurred_at,
+        address_text: report.address_text || undefined,
+        lat: report.lat || undefined,
+        lng: report.lng || undefined,
+        is_anonymous: report.is_anonymous,
+        author_name: report.author_name || undefined,
+        author_contact: report.author_contact || undefined,
+        created_at: report.created_at,
+        evidences: evidences?.map(e => ({ 
+          file_name: e.file_name, 
+          file_url: e.file_url,
+          file_type: e.file_type,
+          created_at: e.created_at 
+        })),
+      });
+      
+      setGeneratedPdf(pdf);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
   
   const isLoading = loadingReport || loadingAgencies;
@@ -192,17 +206,26 @@ export default function ForwardReport() {
               Abrir e-mail pronto
             </Button>
             
-            <Button onClick={handleSharePDF} variant="outline" className="w-full btn-touch">
-              <Share2 className="mr-2 h-5 w-5" />
-              Compartilhar PDF
+            <Button onClick={handleOpenPdfPreview} variant="outline" className="w-full btn-touch">
+              <Eye className="mr-2 h-5 w-5" />
+              Visualizar PDF
             </Button>
             
             <p className="text-xs text-muted-foreground text-center">
-              💡 Toque em "Compartilhar PDF" e anexe no e-mail
+              💡 Visualize o PDF e baixe para anexar ao e-mail
             </p>
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* PDF Preview Modal */}
+      <PDFPreview
+        open={pdfPreviewOpen}
+        onOpenChange={setPdfPreviewOpen}
+        pdf={generatedPdf}
+        filename={`denuncia-${report?.protocol}.pdf`}
+        isLoading={isGeneratingPdf}
+      />
       
       <BottomNav />
     </div>
