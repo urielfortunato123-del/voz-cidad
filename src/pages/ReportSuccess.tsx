@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle, FileText, Send, Eye, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { PDFPreview } from '@/components/PDFPreview';
 import { useReportByProtocol, useReportEvidences } from '@/hooks/useReports';
-import { generateReportPDF, downloadPDF, sharePDF } from '@/lib/pdf';
+import { generateReportPDF } from '@/lib/pdf';
 import { APP_NAME } from '@/lib/constants';
 import type { CategoryKey } from '@/lib/constants';
+import type jsPDF from 'jspdf';
 
 export default function ReportSuccess() {
   const navigate = useNavigate();
@@ -13,62 +16,46 @@ export default function ReportSuccess() {
   const { data: report, isLoading } = useReportByProtocol(protocol || null);
   const { data: evidences } = useReportEvidences(report?.id || null);
   
-  const handleGeneratePDF = async () => {
-    if (!report) return;
-    
-    const pdf = await generateReportPDF({
-      protocol: report.protocol,
-      uf: report.uf,
-      city: report.city,
-      category: report.category as CategoryKey,
-      title: report.title || undefined,
-      description: report.description,
-      occurred_at: report.occurred_at,
-      address_text: report.address_text || undefined,
-      lat: report.lat || undefined,
-      lng: report.lng || undefined,
-      is_anonymous: report.is_anonymous,
-      author_name: report.author_name || undefined,
-      author_contact: report.author_contact || undefined,
-      created_at: report.created_at,
-      evidences: evidences?.map(e => ({ 
-        file_name: e.file_name, 
-        file_url: e.file_url,
-        file_type: e.file_type,
-        created_at: e.created_at 
-      })),
-    });
-    
-    downloadPDF(pdf, `denuncia-${report.protocol}.pdf`);
-  };
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [generatedPdf, setGeneratedPdf] = useState<jsPDF | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
-  const handleSharePDF = async () => {
+  const handleOpenPdfPreview = async () => {
     if (!report) return;
     
-    const pdf = await generateReportPDF({
-      protocol: report.protocol,
-      uf: report.uf,
-      city: report.city,
-      category: report.category as CategoryKey,
-      title: report.title || undefined,
-      description: report.description,
-      occurred_at: report.occurred_at,
-      address_text: report.address_text || undefined,
-      lat: report.lat || undefined,
-      lng: report.lng || undefined,
-      is_anonymous: report.is_anonymous,
-      author_name: report.author_name || undefined,
-      author_contact: report.author_contact || undefined,
-      created_at: report.created_at,
-      evidences: evidences?.map(e => ({ 
-        file_name: e.file_name, 
-        file_url: e.file_url,
-        file_type: e.file_type,
-        created_at: e.created_at 
-      })),
-    });
+    setPdfPreviewOpen(true);
+    setIsGeneratingPdf(true);
     
-    sharePDF(pdf, `denuncia-${report.protocol}.pdf`);
+    try {
+      const pdf = await generateReportPDF({
+        protocol: report.protocol,
+        uf: report.uf,
+        city: report.city,
+        category: report.category as CategoryKey,
+        title: report.title || undefined,
+        description: report.description,
+        occurred_at: report.occurred_at,
+        address_text: report.address_text || undefined,
+        lat: report.lat || undefined,
+        lng: report.lng || undefined,
+        is_anonymous: report.is_anonymous,
+        author_name: report.author_name || undefined,
+        author_contact: report.author_contact || undefined,
+        created_at: report.created_at,
+        evidences: evidences?.map(e => ({ 
+          file_name: e.file_name, 
+          file_url: e.file_url,
+          file_type: e.file_type,
+          created_at: e.created_at 
+        })),
+      });
+      
+      setGeneratedPdf(pdf);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
   
   if (isLoading) {
@@ -112,12 +99,12 @@ export default function ReportSuccess() {
         {/* Action Buttons */}
         <div className="space-y-3">
           <Button 
-            onClick={handleGeneratePDF}
+            onClick={handleOpenPdfPreview}
             className="w-full btn-touch"
             size="lg"
           >
             <FileText className="mr-2 h-5 w-5" />
-            Gerar Relatório PDF
+            Visualizar Relatório PDF
           </Button>
           
           <Button 
@@ -154,10 +141,19 @@ export default function ReportSuccess() {
         {/* Share tip */}
         <div className="mt-8 p-4 bg-muted/50 rounded-xl">
           <p className="text-sm text-muted-foreground text-center">
-            💡 Gere o PDF e compartilhe junto com o e-mail para o órgão responsável
+            💡 Visualize o PDF e compartilhe junto com o e-mail para o órgão responsável
           </p>
         </div>
       </main>
+      
+      {/* PDF Preview Modal */}
+      <PDFPreview
+        open={pdfPreviewOpen}
+        onOpenChange={setPdfPreviewOpen}
+        pdf={generatedPdf}
+        filename={`denuncia-${protocol}.pdf`}
+        isLoading={isGeneratingPdf}
+      />
     </div>
   );
 }
