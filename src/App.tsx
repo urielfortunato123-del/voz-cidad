@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { isOnboardingComplete, getSelectedLocation } from "@/lib/device";
+import { SwipeBackProvider } from "@/components/SwipeBackProvider";
 
 import Onboarding from "./pages/Onboarding";
 import SelectLocation from "./pages/SelectLocation";
@@ -51,34 +52,36 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<InitialRedirect />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/selecionar-local" element={<SelectLocation />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/nova-denuncia" element={<NewReport />} />
-          <Route path="/sucesso/:protocol" element={<ReportSuccess />} />
-          <Route path="/denuncia/:id" element={<ReportDetail />} />
-          <Route path="/denuncias" element={<ReportsFeed />} />
-          <Route path="/encaminhar/:id" element={<ForwardReport />} />
-          <Route path="/orgaos" element={<AgenciesList />} />
-          <Route path="/estatisticas" element={<Dashboard />} />
-          <Route path="/mapa" element={<ReportsMap />} />
-          <Route path="/instalar" element={<InstallPage />} />
-          
-          {/* Admin routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="denuncias" element={<AdminReports />} />
-            <Route path="denuncia/:id" element={<AdminReportDetail />} />
-            <Route path="orgaos" element={<AdminAgencies />} />
-            <Route path="moderacao" element={<AdminModeration />} />
-          </Route>
-          
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SwipeBackProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<InitialRedirect />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/selecionar-local" element={<SelectLocation />} />
+            <Route path="/home" element={<Home />} />
+            <Route path="/nova-denuncia" element={<NewReport />} />
+            <Route path="/sucesso/:protocol" element={<ReportSuccess />} />
+            <Route path="/denuncia/:id" element={<ReportDetail />} />
+            <Route path="/denuncias" element={<ReportsFeed />} />
+            <Route path="/encaminhar/:id" element={<ForwardReport />} />
+            <Route path="/orgaos" element={<AgenciesList />} />
+            <Route path="/estatisticas" element={<Dashboard />} />
+            <Route path="/mapa" element={<ReportsMap />} />
+            <Route path="/instalar" element={<InstallPage />} />
+            
+            {/* Admin routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="denuncias" element={<AdminReports />} />
+              <Route path="denuncia/:id" element={<AdminReportDetail />} />
+              <Route path="orgaos" element={<AdminAgencies />} />
+              <Route path="moderacao" element={<AdminModeration />} />
+            </Route>
+            
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SwipeBackProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
