@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Shield, FileText, Send } from 'lucide-react';
+import { ArrowRight, Shield, FileText, Send, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/constants';
 import { setOnboardingComplete } from '@/lib/device';
@@ -63,6 +63,17 @@ export default function Onboarding() {
                 Envie diretamente para o órgão responsável
               </p>
             </div>
+          </div>
+        </div>
+        
+        {/* Legal Warning */}
+        <div className="w-full max-w-sm p-4 bg-destructive/10 border border-destructive/30 rounded-xl mb-12">
+          <div className="flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+            <p className="text-sm text-foreground/90">
+              <strong className="text-destructive">Atenção:</strong> Denúncias falsas são crime (Art. 339 CP) 
+              e podem resultar em processo e prisão. Relate apenas fatos verídicos.
+            </p>
           </div>
         </div>
       </div>
