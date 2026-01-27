@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, Share2, X, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import { FileText, Download, Share2, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -7,7 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { downloadPDF, sharePDF } from '@/lib/pdf';
+import { downloadPDF } from '@/lib/pdf';
+import { toast } from 'sonner';
 import type jsPDF from 'jspdf';
 
 interface PDFPreviewProps {
@@ -21,6 +22,7 @@ interface PDFPreviewProps {
 export function PDFPreview({ open, onOpenChange, pdf, filename, isLoading }: PDFPreviewProps) {
   const [zoom, setZoom] = useState(100);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
 
   // Generate blob URL when PDF is ready
   const generatePreviewUrl = () => {
@@ -52,9 +54,43 @@ export function PDFPreview({ open, onOpenChange, pdf, filename, isLoading }: PDF
     }
   };
 
-  const handleShare = () => {
-    if (pdf) {
-      sharePDF(pdf, filename);
+  const handleShare = async () => {
+    if (!pdf) return;
+    
+    setIsSharing(true);
+    
+    try {
+      const blob = pdf.output('blob');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      
+      // Check if Web Share API is available and can share files
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Relatório de Denúncia',
+          text: 'Confira o relatório da denúncia cidadã anexo.',
+        });
+        toast.success('PDF compartilhado com sucesso!');
+      } else if (navigator.share) {
+        // Fallback: share without file (just text/link)
+        await navigator.share({
+          title: 'Relatório de Denúncia',
+          text: 'Baixe o PDF da denúncia cidadã pelo aplicativo.',
+        });
+        toast.info('Seu dispositivo não suporta compartilhar arquivos. Baixe o PDF e compartilhe manualmente.');
+      } else {
+        // No Web Share API available
+        toast.info('Seu navegador não suporta compartilhamento. Baixe o PDF e envie pelo WhatsApp.');
+        handleDownload();
+      }
+    } catch (error) {
+      // User cancelled or error occurred
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Error sharing:', error);
+        toast.error('Erro ao compartilhar. Tente baixar o PDF.');
+      }
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -142,24 +178,32 @@ export function PDFPreview({ open, onOpenChange, pdf, filename, isLoading }: PDF
           <div className="flex gap-3">
             <Button
               onClick={handleDownload}
-              className="flex-1 btn-touch"
-              size="lg"
-              disabled={!pdf}
-            >
-              <Download className="mr-2 h-5 w-5" />
-              Baixar PDF
-            </Button>
-            <Button
-              onClick={handleShare}
               variant="outline"
               className="flex-1 btn-touch"
               size="lg"
               disabled={!pdf}
             >
-              <Share2 className="mr-2 h-5 w-5" />
-              Compartilhar
+              <Download className="mr-2 h-5 w-5" />
+              Baixar
+            </Button>
+            <Button
+              onClick={handleShare}
+              className="flex-1 btn-touch"
+              size="lg"
+              disabled={!pdf || isSharing}
+            >
+              {isSharing ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <Share2 className="mr-2 h-5 w-5" />
+              )}
+              Enviar por WhatsApp
             </Button>
           </div>
+          
+          <p className="text-xs text-muted-foreground text-center mt-3">
+            💡 O botão "Enviar por WhatsApp" abre o compartilhamento do seu dispositivo
+          </p>
         </div>
       </DialogContent>
     </Dialog>
