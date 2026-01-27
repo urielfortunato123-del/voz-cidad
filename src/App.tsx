@@ -14,6 +14,7 @@ import ReportDetail from "./pages/ReportDetail";
 import ReportsFeed from "./pages/ReportsFeed";
 import ForwardReport from "./pages/ForwardReport";
 import AgenciesList from "./pages/AgenciesList";
+import InstallPage from "./pages/InstallPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
           <Route path="/denuncias" element={<ReportsFeed />} />
           <Route path="/encaminhar/:id" element={<ForwardReport />} />
           <Route path="/orgaos" element={<AgenciesList />} />
+          <Route path="/instalar" element={<InstallPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
