@@ -1,0 +1,378 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { format } from 'date-fns';
+import { CalendarIcon, MapPin, Loader2 } from 'lucide-react';
+import { Header } from '@/components/Header';
+import { BottomNav } from '@/components/BottomNav';
+import { FileUploader } from '@/components/FileUploader';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { CATEGORIES, VALIDATION, type CategoryKey } from '@/lib/constants';
+import { getSelectedLocation } from '@/lib/device';
+import { useCreateReport, useUploadEvidence } from '@/hooks/useReports';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+const formSchema = z.object({
+  category: z.string().min(1, 'Selecione uma categoria'),
+  title: z.string().max(80).optional(),
+  description: z.string().min(1, 'Descrição é obrigatória').max(1000, 'Máximo 1000 caracteres'),
+  occurred_at: z.date(),
+  address_text: z.string().optional(),
+  is_anonymous: z.boolean(),
+  author_name: z.string().optional(),
+  author_contact: z.string().optional(),
+  show_name_publicly: z.boolean(),
+  terms_accepted: z.boolean().refine(val => val === true, 'Você deve aceitar os termos'),
+}).refine(data => {
+  if (!data.is_anonymous && !data.author_name) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Nome é obrigatório para denúncia identificada',
+  path: ['author_name'],
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+export default function NewReport() {
+  const navigate = useNavigate();
+  const location = getSelectedLocation();
+  const [files, setFiles] = useState<File[]>([]);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  
+  const createReport = useCreateReport();
+  const uploadEvidence = useUploadEvidence();
+  
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      category: '',
+      title: '',
+      description: '',
+      occurred_at: new Date(),
+      address_text: '',
+      is_anonymous: true,
+      author_name: '',
+      author_contact: '',
+      show_name_publicly: false,
+      terms_accepted: false,
+    },
+  });
+  
+  const isAnonymous = watch('is_anonymous');
+  const description = watch('description') || '';
+  const occurredAt = watch('occurred_at');
+  
+  const handleGetLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocalização não suportada');
+      return;
+    }
+    
+    setGettingLocation(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoords({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setGettingLocation(false);
+        toast.success('Localização capturada!');
+      },
+      (error) => {
+        setGettingLocation(false);
+        toast.error('Não foi possível obter a localização');
+      }
+    );
+  };
+  
+  const onSubmit = async (data: FormData) => {
+    if (!location) {
+      navigate('/selecionar-local');
+      return;
+    }
+    
+    try {
+      const report = await createReport.mutateAsync({
+        uf: location.uf,
+        city: location.city,
+        category: data.category as CategoryKey,
+        title: data.title,
+        description: data.description,
+        occurred_at: format(data.occurred_at, 'yyyy-MM-dd'),
+        address_text: data.address_text,
+        lat: coords?.lat,
+        lng: coords?.lng,
+        is_anonymous: data.is_anonymous,
+        author_name: data.author_name,
+        author_contact: data.author_contact,
+        show_name_publicly: data.show_name_publicly,
+      });
+      
+      // Upload files
+      for (const file of files) {
+        try {
+          await uploadEvidence.mutateAsync({ reportId: report.id, file });
+        } catch (err) {
+          console.error('Error uploading file:', err);
+        }
+      }
+      
+      toast.success('Denúncia registrada!');
+      navigate(`/sucesso/${report.protocol}`);
+    } catch (error) {
+      toast.error('Erro ao registrar denúncia');
+      console.error(error);
+    }
+  };
+  
+  if (!location) {
+    navigate('/selecionar-local');
+    return null;
+  }
+  
+  return (
+    <div className="min-h-screen bg-background pb-24">
+      <Header title="Nova Denúncia" showBack />
+      
+      <main className="page-container">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Category */}
+          <div className="space-y-2">
+            <Label className="form-label">Categoria *</Label>
+            <Select onValueChange={(v) => setValue('category', v)}>
+              <SelectTrigger className="input-accessible">
+                <SelectValue placeholder="Selecione a categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(CATEGORIES).map(([key, { label }]) => (
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.category && (
+              <p className="text-sm text-destructive">{errors.category.message}</p>
+            )}
+          </div>
+          
+          {/* Title */}
+          <div className="space-y-2">
+            <Label className="form-label">Título (opcional)</Label>
+            <Input
+              {...register('title')}
+              placeholder="Ex: Buraco na rua principal"
+              className="input-accessible"
+              maxLength={80}
+            />
+          </div>
+          
+          {/* Description */}
+          <div className="space-y-2">
+            <Label className="form-label">Descrição *</Label>
+            <Textarea
+              {...register('description')}
+              placeholder="Descreva o problema com detalhes..."
+              className="min-h-[150px] text-base"
+              maxLength={1000}
+            />
+            <div className="flex justify-between text-sm">
+              {errors.description ? (
+                <p className="text-destructive">{errors.description.message}</p>
+              ) : (
+                <span />
+              )}
+              <span className={cn(
+                'text-muted-foreground',
+                description.length > 900 && 'text-warning',
+                description.length >= 1000 && 'text-destructive'
+              )}>
+                {description.length}/{VALIDATION.DESCRIPTION_MAX}
+              </span>
+            </div>
+          </div>
+          
+          {/* Date */}
+          <div className="space-y-2">
+            <Label className="form-label">Data do ocorrido *</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'w-full input-accessible justify-start text-left font-normal',
+                    !occurredAt && 'text-muted-foreground'
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {occurredAt ? format(occurredAt, 'dd/MM/yyyy') : 'Selecione a data'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={occurredAt}
+                  onSelect={(date) => date && setValue('occurred_at', date)}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          
+          {/* Location */}
+          <div className="space-y-3">
+            <Label className="form-label">Local do fato</Label>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGetLocation}
+              disabled={gettingLocation}
+              className="w-full btn-touch"
+            >
+              {gettingLocation ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <MapPin className="mr-2 h-5 w-5" />
+              )}
+              {coords ? 'Localização capturada ✓' : 'Usar minha localização'}
+            </Button>
+            <Input
+              {...register('address_text')}
+              placeholder="Ou digite o endereço aproximado"
+              className="input-accessible"
+            />
+          </div>
+          
+          {/* Files */}
+          <div className="space-y-2">
+            <Label className="form-label">Evidências</Label>
+            <FileUploader files={files} onChange={setFiles} />
+          </div>
+          
+          {/* Identification */}
+          <div className="space-y-4 p-4 bg-muted/50 rounded-xl">
+            <Label className="form-label">Identificação</Label>
+            <RadioGroup
+              defaultValue="anonymous"
+              onValueChange={(v) => setValue('is_anonymous', v === 'anonymous')}
+              className="space-y-3"
+            >
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem value="anonymous" id="anonymous" />
+                <Label htmlFor="anonymous" className="font-normal cursor-pointer">
+                  Anônimo
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem value="identified" id="identified" />
+                <Label htmlFor="identified" className="font-normal cursor-pointer">
+                  Identificado
+                </Label>
+              </div>
+            </RadioGroup>
+            
+            {!isAnonymous && (
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label className="form-label">Nome *</Label>
+                  <Input
+                    {...register('author_name')}
+                    placeholder="Seu nome completo"
+                    className="input-accessible"
+                  />
+                  {errors.author_name && (
+                    <p className="text-sm text-destructive">{errors.author_name.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="form-label">Contato (opcional)</Label>
+                  <Input
+                    {...register('author_contact')}
+                    placeholder="E-mail ou telefone"
+                    className="input-accessible"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="show-name" className="text-sm cursor-pointer">
+                    Exibir meu nome publicamente
+                  </Label>
+                  <Switch
+                    id="show-name"
+                    onCheckedChange={(checked) => setValue('show_name_publicly', checked)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Terms */}
+          <div className="space-y-3">
+            <div className="flex items-start space-x-3">
+              <Checkbox
+                id="terms"
+                onCheckedChange={(checked) => setValue('terms_accepted', checked === true)}
+              />
+              <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
+                Declaro que estou relatando fatos. Não irei expor dados pessoais de terceiros. 
+                Entendo que acusações sem prova podem ser removidas.
+              </Label>
+            </div>
+            {errors.terms_accepted && (
+              <p className="text-sm text-destructive">{errors.terms_accepted.message}</p>
+            )}
+          </div>
+          
+          {/* Submit */}
+          <Button 
+            type="submit" 
+            className="w-full btn-touch text-lg"
+            size="lg"
+            disabled={isSubmitting || createReport.isPending}
+          >
+            {(isSubmitting || createReport.isPending) ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Enviando...
+              </>
+            ) : (
+              'Enviar Denúncia'
+            )}
+          </Button>
+        </form>
+      </main>
+      
+      <BottomNav />
+    </div>
+  );
+}
