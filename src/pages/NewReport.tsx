@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { CalendarIcon, MapPin, Loader2, Mic } from 'lucide-react';
+import { CalendarIcon, MapPin, Loader2, Mic, AlertTriangle } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { FileUploader } from '@/components/FileUploader';
@@ -164,6 +164,22 @@ export default function NewReport() {
       <Header title="Nova Denúncia" showBack />
       
       <main className="page-container">
+        {/* Legal Warning */}
+        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-xl">
+          <div className="flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold text-destructive text-sm">
+                Atenção: Denúncias falsas são crime!
+              </p>
+              <p className="text-sm text-foreground/80">
+                Denunciar falsamente funcionário público pode resultar em <strong>processo judicial e prisão</strong> (Art. 339 do Código Penal). 
+                Relate apenas fatos verídicos que você presenciou. A internet não é terra sem lei.
+              </p>
+            </div>
+          </div>
+        </div>
+        
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Category */}
           <div className="space-y-2">
@@ -347,15 +363,16 @@ export default function NewReport() {
           </div>
           
           {/* Terms */}
-          <div className="space-y-3">
+          <div className="space-y-3 p-4 bg-muted/50 rounded-xl border border-border">
             <div className="flex items-start space-x-3">
               <Checkbox
                 id="terms"
                 onCheckedChange={(checked) => setValue('terms_accepted', checked === true)}
               />
               <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
-                Declaro que estou relatando fatos. Não irei expor dados pessoais de terceiros. 
-                Entendo que acusações sem prova podem ser removidas.
+                <strong>Declaro sob as penas da lei</strong> que estou relatando fatos verídicos que presenciei. 
+                Não irei expor dados pessoais de terceiros. Estou ciente de que denúncias falsas 
+                constituem crime e podem resultar em processo criminal.
               </Label>
             </div>
             {errors.terms_accepted && (
