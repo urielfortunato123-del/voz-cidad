@@ -19,12 +19,34 @@ interface ReportData {
   author_name?: string;
   author_contact?: string;
   created_at: string;
-  evidences?: Array<{ file_name: string; created_at: string }>;
+  evidences?: Array<{ file_name: string; file_url: string; file_type: string; created_at: string }>;
 }
 
-export function generateReportPDF(report: ReportData): jsPDF {
+// Helper to load image as base64
+async function loadImageAsBase64(url: string): Promise<{ data: string; format: string } | null> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        const format = blob.type.includes('png') ? 'PNG' : 'JPEG';
+        resolve({ data: base64, format });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function generateReportPDF(report: ReportData): Promise<jsPDF> {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   const contentWidth = pageWidth - 2 * margin;
   let y = margin;
@@ -133,31 +155,122 @@ export function generateReportPDF(report: ReportData): jsPDF {
   doc.text(descLines, margin, y);
   y += descLines.length * 5 + 10;
 
-  // Evidences
+  // Evidences with images
   if (report.evidences && report.evidences.length > 0) {
-    if (y > 240) {
+    // Filter only image evidences
+    const imageEvidences = report.evidences.filter(e => 
+      e.file_type.startsWith('image/')
+    );
+    const otherEvidences = report.evidences.filter(e => 
+      !e.file_type.startsWith('image/')
+    );
+
+    if (imageEvidences.length > 0) {
+      // Add new page for images
       doc.addPage();
       y = margin;
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 40, 40);
+      doc.text('EVIDÊNCIAS FOTOGRÁFICAS', margin, y);
+      y += 10;
+
+      const maxImageWidth = contentWidth;
+      const maxImageHeight = 100;
+
+      for (let i = 0; i < imageEvidences.length; i++) {
+        const evidence = imageEvidences[i];
+        
+        // Check if we need a new page
+        if (y + maxImageHeight + 20 > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+
+        // Load and add image
+        const imageData = await loadImageAsBase64(evidence.file_url);
+        
+        if (imageData) {
+          try {
+            // Create temporary image to get dimensions
+            const img = new Image();
+            await new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+              img.src = imageData.data;
+            });
+
+            // Calculate dimensions maintaining aspect ratio
+            let imgWidth = img.width;
+            let imgHeight = img.height;
+            
+            if (imgWidth > maxImageWidth) {
+              const ratio = maxImageWidth / imgWidth;
+              imgWidth = maxImageWidth;
+              imgHeight = imgHeight * ratio;
+            }
+            
+            if (imgHeight > maxImageHeight) {
+              const ratio = maxImageHeight / imgHeight;
+              imgHeight = maxImageHeight;
+              imgWidth = imgWidth * ratio;
+            }
+
+            // Add image
+            doc.addImage(imageData.data, imageData.format, margin, y, imgWidth, imgHeight);
+            y += imgHeight + 5;
+            
+            // Add caption
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(100, 100, 100);
+            doc.text(`${i + 1}. ${evidence.file_name}`, margin, y);
+            y += 15;
+          } catch (e) {
+            // If image fails, just list the filename
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(60, 60, 60);
+            doc.text(`${i + 1}. ${evidence.file_name} (não foi possível carregar)`, margin, y);
+            y += 10;
+          }
+        } else {
+          // If image fails to load, just list the filename
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(60, 60, 60);
+          doc.text(`${i + 1}. ${evidence.file_name} (não foi possível carregar)`, margin, y);
+          y += 10;
+        }
+      }
     }
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(80, 80, 80);
-    doc.text('EVIDÊNCIAS ANEXADAS', margin, y);
-    y += 7;
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    
-    report.evidences.forEach((evidence, index) => {
-      doc.text(`${index + 1}. ${evidence.file_name}`, margin + 5, y);
-      y += 5;
-    });
-    y += 5;
+
+    // List other (non-image) evidences
+    if (otherEvidences.length > 0) {
+      if (y + 40 > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(80, 80, 80);
+      doc.text('OUTROS ANEXOS', margin, y);
+      y += 7;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      
+      otherEvidences.forEach((evidence, index) => {
+        doc.text(`${index + 1}. ${evidence.file_name}`, margin + 5, y);
+        y += 5;
+      });
+    }
   }
 
-  // Footer
+  // Footer on last page
   const footerY = doc.internal.pageSize.getHeight() - 15;
   doc.setDrawColor(200, 200, 200);
   doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);

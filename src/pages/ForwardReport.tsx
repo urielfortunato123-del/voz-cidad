@@ -66,10 +66,10 @@ export default function ForwardReport() {
     }
   };
   
-  const handleSharePDF = () => {
+  const handleSharePDF = async () => {
     if (!report) return;
     
-    const pdf = generateReportPDF({
+    const pdf = await generateReportPDF({
       protocol: report.protocol,
       uf: report.uf,
       city: report.city,
@@ -84,7 +84,12 @@ export default function ForwardReport() {
       author_name: report.author_name || undefined,
       author_contact: report.author_contact || undefined,
       created_at: report.created_at,
-      evidences: evidences?.map(e => ({ file_name: e.file_name, created_at: e.created_at })),
+      evidences: evidences?.map(e => ({ 
+        file_name: e.file_name, 
+        file_url: e.file_url,
+        file_type: e.file_type,
+        created_at: e.created_at 
+      })),
     });
     
     sharePDF(pdf, `denuncia-${report.protocol}.pdf`);
