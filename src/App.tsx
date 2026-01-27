@@ -15,7 +15,18 @@ import ReportsFeed from "./pages/ReportsFeed";
 import ForwardReport from "./pages/ForwardReport";
 import AgenciesList from "./pages/AgenciesList";
 import InstallPage from "./pages/InstallPage";
+import Dashboard from "./pages/Dashboard";
+import ReportsMap from "./pages/ReportsMap";
 import NotFound from "./pages/NotFound";
+
+// Admin pages
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminReports from "./pages/admin/AdminReports";
+import AdminAgencies from "./pages/admin/AdminAgencies";
+import AdminModeration from "./pages/admin/AdminModeration";
+import AdminReportDetail from "./pages/admin/AdminReportDetail";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +52,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Public routes */}
           <Route path="/" element={<InitialRedirect />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/selecionar-local" element={<SelectLocation />} />
@@ -51,7 +63,20 @@ const App = () => (
           <Route path="/denuncias" element={<ReportsFeed />} />
           <Route path="/encaminhar/:id" element={<ForwardReport />} />
           <Route path="/orgaos" element={<AgenciesList />} />
+          <Route path="/estatisticas" element={<Dashboard />} />
+          <Route path="/mapa" element={<ReportsMap />} />
           <Route path="/instalar" element={<InstallPage />} />
+          
+          {/* Admin routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="denuncias" element={<AdminReports />} />
+            <Route path="denuncia/:id" element={<AdminReportDetail />} />
+            <Route path="orgaos" element={<AdminAgencies />} />
+            <Route path="moderacao" element={<AdminModeration />} />
+          </Route>
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
