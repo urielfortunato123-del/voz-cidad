@@ -35,9 +35,10 @@ export function Header({
               variant="ghost" 
               size="icon" 
               onClick={() => navigate(-1)}
-              className="flex-shrink-0"
+              className="flex-shrink-0 -ml-2 h-10 w-10 hover:bg-muted"
+              aria-label="Voltar"
             >
-              <ChevronLeft className="h-6 w-6" />
+              <ChevronLeft className="h-7 w-7" />
             </Button>
           )}
           
