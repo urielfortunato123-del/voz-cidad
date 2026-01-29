@@ -40,8 +40,8 @@ export const STORAGE_KEYS = {
 } as const;
 
 // App Info
-export const APP_NAME = 'Voz da Cidade';
-export const APP_DESCRIPTION = 'Plataforma de denúncias cidadãs';
+export const APP_NAME = 'Fiscaliza Brasil';
+export const APP_DESCRIPTION = 'Plataforma de fiscalização cidadã';
 
 // Validation
 export const VALIDATION = {
