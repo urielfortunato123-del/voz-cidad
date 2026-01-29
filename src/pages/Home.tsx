@@ -71,10 +71,10 @@ export default function Home() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-heading font-bold text-foreground mb-1">
-            Olá, cidadão!
+            Fiscaliza Brasil
           </h2>
           <p className="text-muted-foreground">
-            O que você gostaria de fazer hoje?
+            Sua voz, sua cidade, seu País
           </p>
         </div>
         
