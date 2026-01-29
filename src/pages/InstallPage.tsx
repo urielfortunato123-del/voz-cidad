@@ -79,8 +79,8 @@ export default function InstallPage() {
       <main className="page-container pt-12">
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-10">
-          <div className="w-24 h-24 bg-primary rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-            <img src="/icons/icon-192x192.png" alt={APP_NAME} className="w-20 h-20 rounded-xl" />
+        <div className="w-24 h-24 rounded-2xl flex items-center justify-center mb-6 shadow-lg overflow-hidden">
+            <img src="/icons/icon-192x192.png" alt={APP_NAME} className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-heading font-bold text-foreground mb-2">
             Instalar {APP_NAME}
