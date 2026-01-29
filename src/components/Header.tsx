@@ -7,6 +7,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { useOffline } from '@/contexts/OfflineContext';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import logo from '@/assets/logo.png';
 
 interface HeaderProps {
   title?: string;
@@ -65,6 +66,10 @@ export function Header({
               >
                 <ChevronLeft className="h-7 w-7" />
               </Button>
+            )}
+            
+            {!showBack && (
+              <img src={logo} alt="Fiscaliza Brasil" className="h-8 w-8 object-contain" />
             )}
             
             <h1 className="font-heading font-semibold text-lg text-foreground truncate">
