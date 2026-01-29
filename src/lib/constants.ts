@@ -41,7 +41,7 @@ export const STORAGE_KEYS = {
 
 // App Info
 export const APP_NAME = 'Fiscaliza Brasil';
-export const APP_DESCRIPTION = 'Plataforma de fiscalização cidadã';
+export const APP_DESCRIPTION = 'Sua voz, sua cidade, seu País';
 
 // Validation
 export const VALIDATION = {
