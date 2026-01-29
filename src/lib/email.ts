@@ -50,7 +50,7 @@ Atenciosamente,
 ${authorSignature}
 
 ---
-Denúncia registrada pelo aplicativo Voz da Cidade`;
+Denúncia registrada pelo aplicativo Fiscaliza Brasil`;
 
   return { subject, body };
 }

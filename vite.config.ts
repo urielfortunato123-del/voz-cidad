@@ -20,9 +20,9 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt", "icons/*.png"],
       manifest: {
-        name: "Voz da Cidade",
-        short_name: "VozCidade",
-        description: "Plataforma de denúncias cidadãs para problemas municipais e estaduais",
+        name: "Fiscaliza Brasil",
+        short_name: "Fiscaliza",
+        description: "Plataforma de fiscalização cidadã para problemas municipais, estaduais e federais",
         theme_color: "#3d7a4f",
         background_color: "#f7f9fc",
         display: "standalone",
