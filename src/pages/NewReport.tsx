@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { CalendarIcon, MapPin, Loader2, Mic, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, MapPin, Loader2, AlertTriangle, WifiOff } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { FileUploader } from '@/components/FileUploader';
@@ -28,6 +28,7 @@ import {
 import { CATEGORIES, VALIDATION, type CategoryKey } from '@/lib/constants';
 import { getSelectedLocation } from '@/lib/device';
 import { useCreateReport, useUploadEvidence } from '@/hooks/useReports';
+import { useOffline } from '@/contexts/OfflineContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +64,7 @@ export default function NewReport() {
   
   const createReport = useCreateReport();
   const uploadEvidence = useUploadEvidence();
+  const { isOnline, addPendingReport } = useOffline();
   
   const {
     register,
@@ -120,21 +122,45 @@ export default function NewReport() {
       return;
     }
     
+    const reportData = {
+      uf: location.uf,
+      city: location.city,
+      category: data.category as CategoryKey,
+      title: data.title || null,
+      description: data.description,
+      occurred_at: format(data.occurred_at, 'yyyy-MM-dd'),
+      address_text: data.address_text || null,
+      lat: coords?.lat || null,
+      lng: coords?.lng || null,
+      is_anonymous: data.is_anonymous,
+      author_name: data.author_name || null,
+      author_contact: data.author_contact || null,
+      show_name_publicly: data.show_name_publicly,
+    };
+    
+    // If offline, save locally
+    if (!isOnline) {
+      try {
+        const pendingReport = await addPendingReport(reportData, files);
+        navigate(`/sucesso/${pendingReport.protocol}?offline=true`);
+        return;
+      } catch (error) {
+        toast.error('Erro ao salvar denúncia localmente');
+        console.error(error);
+        return;
+      }
+    }
+    
+    // Online: send to server
     try {
       const report = await createReport.mutateAsync({
-        uf: location.uf,
-        city: location.city,
-        category: data.category as CategoryKey,
-        title: data.title,
-        description: data.description,
-        occurred_at: format(data.occurred_at, 'yyyy-MM-dd'),
-        address_text: data.address_text,
-        lat: coords?.lat,
-        lng: coords?.lng,
-        is_anonymous: data.is_anonymous,
-        author_name: data.author_name,
-        author_contact: data.author_contact,
-        show_name_publicly: data.show_name_publicly,
+        ...reportData,
+        title: reportData.title || undefined,
+        address_text: reportData.address_text || undefined,
+        lat: reportData.lat || undefined,
+        lng: reportData.lng || undefined,
+        author_name: reportData.author_name || undefined,
+        author_contact: reportData.author_contact || undefined,
       });
       
       // Upload files
@@ -149,8 +175,15 @@ export default function NewReport() {
       toast.success('Denúncia registrada!');
       navigate(`/sucesso/${report.protocol}`);
     } catch (error) {
-      toast.error('Erro ao registrar denúncia');
-      console.error(error);
+      // If online submission fails, save offline
+      toast.warning('Falha na conexão. Salvando localmente...');
+      try {
+        const pendingReport = await addPendingReport(reportData, files);
+        navigate(`/sucesso/${pendingReport.protocol}?offline=true`);
+      } catch (offlineError) {
+        toast.error('Erro ao salvar denúncia');
+        console.error(offlineError);
+      }
     }
   };
   
@@ -164,6 +197,16 @@ export default function NewReport() {
       <Header title="Nova Denúncia" showBack />
       
       <main className="page-container">
+        {/* Offline indicator */}
+        {!isOnline && (
+          <div className="mb-4 p-3 bg-warning/10 border border-warning/30 rounded-lg flex items-center gap-3">
+            <WifiOff className="h-5 w-5 text-warning flex-shrink-0" />
+            <p className="text-sm text-foreground">
+              <strong>Modo offline:</strong> Sua denúncia será salva e enviada quando a conexão for restabelecida.
+            </p>
+          </div>
+        )}
+        
         {/* Legal Warning */}
         <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-xl">
           <div className="flex gap-3">
@@ -390,10 +433,15 @@ export default function NewReport() {
             {(isSubmitting || createReport.isPending) ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Enviando...
+                {isOnline ? 'Enviando...' : 'Salvando...'}
               </>
-            ) : (
+            ) : isOnline ? (
               'Enviar Denúncia'
+            ) : (
+              <>
+                <WifiOff className="mr-2 h-5 w-5" />
+                Salvar Offline
+              </>
             )}
           </Button>
         </form>
