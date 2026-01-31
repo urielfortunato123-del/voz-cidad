@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { isOnboardingComplete, getSelectedLocation } from "@/lib/device";
 import { SwipeBackProvider } from "@/components/SwipeBackProvider";
 import { OfflineProvider } from "@/contexts/OfflineContext";
+import { AIAssistantButton } from "@/components/AIAssistant";
 
 import Onboarding from "./pages/Onboarding";
 import SelectLocation from "./pages/SelectLocation";
@@ -83,6 +84,9 @@ const App = () => (
               
               <Route path="*" element={<NotFound />} />
             </Routes>
+            
+            {/* AI Assistant - available on all pages */}
+            <AIAssistantButton />
           </SwipeBackProvider>
         </BrowserRouter>
       </OfflineProvider>

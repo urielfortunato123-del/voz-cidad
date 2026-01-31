@@ -9,6 +9,7 @@ import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { FileUploader } from '@/components/FileUploader';
 import { VoiceInput } from '@/components/VoiceInput';
+import { ReportAnalyzer } from '@/components/AIAssistant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -341,6 +342,16 @@ export default function NewReport() {
             />
           </div>
           
+          {/* AI Assistant */}
+          {description.length >= 20 && (
+            <ReportAnalyzer
+              category={watch('category') || ''}
+              title={watch('title')}
+              description={description}
+              onApplySuggestion={(text) => setValue('description', text)}
+            />
+          )}
+
           {/* Files */}
           <div className="space-y-2">
             <Label className="form-label">Evidências</Label>
