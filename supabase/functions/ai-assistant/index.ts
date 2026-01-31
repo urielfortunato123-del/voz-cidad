@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface AssistantRequest {
@@ -58,8 +58,9 @@ Seja preciso nas citações legais. Explique os termos jurídicos de forma simpl
   }
 };
 
-const PAGE_CONTEXT = {
+const PAGE_CONTEXT: Record<string, string> = {
   "/": "O usuário está na página inicial, onde pode ver estatísticas e acessar funcionalidades principais.",
+  "/home": "O usuário está na página inicial, onde pode ver estatísticas e acessar funcionalidades principais.",
   "/nova-denuncia": "O usuário está criando uma nova denúncia. Ajude-o a descrever bem o problema e a categoria correta.",
   "/denuncias": "O usuário está visualizando a lista de denúncias da cidade.",
   "/mapa": "O usuário está vendo o mapa com as denúncias geolocalizadas.",
@@ -73,9 +74,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY is not configured");
     }
 
     const { type, message, reportData, userProfile, currentPage }: AssistantRequest = await req.json();
@@ -84,8 +85,8 @@ serve(async (req) => {
     let userMessage = message || "";
 
     // Add page context
-    if (currentPage && PAGE_CONTEXT[currentPage as keyof typeof PAGE_CONTEXT]) {
-      systemPrompt += `\n\nContexto: ${PAGE_CONTEXT[currentPage as keyof typeof PAGE_CONTEXT]}`;
+    if (currentPage && PAGE_CONTEXT[currentPage]) {
+      systemPrompt += `\n\nContexto: ${PAGE_CONTEXT[currentPage]}`;
     }
 
     // Handle different request types
@@ -136,14 +137,16 @@ ${reportData.description}`;
         break;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://fiscalizabrasil.app",
+        "X-Title": "Fiscaliza Brasil",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.0-flash-001",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
@@ -161,12 +164,12 @@ ${reportData.description}`;
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Limite de uso atingido. Entre em contato com o suporte." }),
+          JSON.stringify({ error: "Créditos insuficientes na conta OpenRouter." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("OpenRouter API error:", response.status, errorText);
       return new Response(
         JSON.stringify({ error: "Erro ao processar sua solicitação. Tente novamente." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
