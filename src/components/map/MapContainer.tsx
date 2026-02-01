@@ -26,6 +26,7 @@ interface MapContainerProps {
   center: [number, number];
   zoom: number;
   markers: MapMarker[];
+  userLocation?: [number, number] | null;
   onMarkerClick?: (marker: MapMarker) => void;
   onViewportChange?: (viewport: {
     center: [number, number];
@@ -34,6 +35,49 @@ interface MapContainerProps {
   }) => void;
   className?: string;
 }
+
+// Special icon for user location
+const createUserLocationIcon = () => {
+  return L.divIcon({
+    className: 'user-location-marker',
+    html: `
+      <div style="position: relative; width: 40px; height: 40px;">
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 40px;
+          height: 40px;
+          background: rgba(59, 130, 246, 0.2);
+          border-radius: 50%;
+          animation: pulse 2s ease-out infinite;
+        "></div>
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 16px;
+          height: 16px;
+          background: #3B82F6;
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+        "></div>
+      </div>
+      <style>
+        @keyframes pulse {
+          0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+        }
+      </style>
+    `,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+  });
+};
 
 // Custom marker icons by category/type
 const createCustomIcon = (color: string) => {
@@ -84,6 +128,7 @@ export function MapComponent({
   center,
   zoom,
   markers,
+  userLocation,
   onMarkerClick,
   onViewportChange,
   className,
@@ -91,6 +136,7 @@ export function MapComponent({
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
 
   const emitViewport = () => {
     const map = mapRef.current;
@@ -163,6 +209,30 @@ export function MapComponent({
       markersLayerRef.current?.addLayer(leafletMarker);
     });
   }, [markers, onMarkerClick]);
+
+  // Update user location marker
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Remove existing user marker
+    if (userMarkerRef.current) {
+      map.removeLayer(userMarkerRef.current);
+      userMarkerRef.current = null;
+    }
+
+    // Add new user marker if location available
+    if (userLocation) {
+      const userIcon = createUserLocationIcon();
+      userMarkerRef.current = L.marker(userLocation, { icon: userIcon, zIndexOffset: 1000 })
+        .bindPopup(`
+          <div style="padding: 8px; text-align: center;">
+            <strong style="font-size: 14px; color: #3B82F6;">📍 Você está aqui</strong>
+          </div>
+        `)
+        .addTo(map);
+    }
+  }, [userLocation]);
 
   return (
     <div 
