@@ -1,16 +1,27 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CheckCircle, FileText, Send, Eye, Home, CloudOff, RefreshCw, Shield } from 'lucide-react';
+import { CheckCircle, FileText, Eye, Home, CloudOff, RefreshCw, Shield, Mail, Copy, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PDFPreview } from '@/components/PDFPreview';
 import { TempEmailGuide } from '@/components/TempEmailGuide';
+import { AgencyCard } from '@/components/AgencyCard';
 import { useReportByProtocol, useReportEvidences } from '@/hooks/useReports';
+import { useAgencies, type Agency } from '@/hooks/useAgencies';
 import { useOffline } from '@/contexts/OfflineContext';
 import { generateReportPDF } from '@/lib/pdf';
-import { APP_NAME, CATEGORIES } from '@/lib/constants';
+import { generateEmailContent, openMailto, copyToClipboard } from '@/lib/email';
+import { APP_NAME, CATEGORIES, AGENCY_SCOPES } from '@/lib/constants';
 import type { CategoryKey } from '@/lib/constants';
 import type jsPDF from 'jspdf';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function ReportSuccess() {
   const navigate = useNavigate();
@@ -24,14 +35,22 @@ export default function ReportSuccess() {
   
   // Find pending report if offline
   const pendingReport = isOffline ? pendingReports.find(r => r.protocol === protocol) : null;
+  const reportData = report || pendingReport;
+  
+  // Fetch agencies based on report's location and category
+  const { data: agencies, isLoading: loadingAgencies } = useAgencies(
+    reportData?.uf || null,
+    reportData?.city || null,
+    reportData?.category as CategoryKey
+  );
   
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [tempEmailGuideOpen, setTempEmailGuideOpen] = useState(false);
+  const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
   const [generatedPdf, setGeneratedPdf] = useState<jsPDF | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   const generatePdf = async () => {
-    const reportData = report || pendingReport;
     if (!reportData || generatedPdf) return;
 
     setIsGeneratingPdf(true);
@@ -73,8 +92,52 @@ export default function ReportSuccess() {
     }
   };
 
-  // Generate email content for temp email guide
-  const reportData = report || pendingReport;
+  // Generate email content for agency dialog
+  const getEmailContent = (agencyEmail: string) => {
+    if (!reportData) return { subject: '', body: '' };
+    return generateEmailContent({
+      protocol: reportData.protocol,
+      uf: reportData.uf,
+      city: reportData.city,
+      category: reportData.category as CategoryKey,
+      description: reportData.description,
+      address_text: reportData.address_text || undefined,
+      lat: reportData.lat || undefined,
+      lng: reportData.lng || undefined,
+      author_name: reportData.author_name || undefined,
+      is_anonymous: reportData.is_anonymous,
+    }, agencyEmail);
+  };
+
+  const handleSelectAgency = (agency: Agency) => {
+    setSelectedAgency(agency);
+  };
+
+  const handleOpenEmail = () => {
+    if (!reportData || !selectedAgency) return;
+    const { subject, body } = getEmailContent(selectedAgency.email);
+    openMailto(selectedAgency.email, subject, body);
+  };
+
+  const handleCopyEmail = async () => {
+    if (!selectedAgency) return;
+    try {
+      await copyToClipboard(selectedAgency.email);
+      toast.success('E-mail copiado!');
+    } catch {
+      toast.error('Erro ao copiar');
+    }
+  };
+
+  // Group agencies by scope
+  const groupedAgencies = agencies?.reduce((acc, agency) => {
+    if (!acc[agency.scope]) {
+      acc[agency.scope] = [];
+    }
+    acc[agency.scope].push(agency);
+    return acc;
+  }, {} as Record<string, Agency[]>);
+
   const emailSubject = reportData
     ? `Denúncia Cidadã - Protocolo ${reportData.protocol} - ${CATEGORIES[reportData.category as CategoryKey]?.label || ''}`
     : '';
@@ -182,6 +245,54 @@ ${APP_NAME}`
           </Button>
         )}
         
+        {/* Agencies List - Show when not offline */}
+        {!isPending && reportData && (
+          <div className="mb-8">
+            <h2 className="text-lg font-heading font-semibold text-foreground mb-4">
+              📨 Enviar para órgão responsável
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Selecione um órgão para encaminhar sua denúncia:
+            </p>
+            
+            {loadingAgencies ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : agencies && agencies.length > 0 ? (
+              <div className="space-y-4">
+                {(['MUNICIPAL', 'ESTADUAL', 'FEDERAL'] as const).map((scope) => {
+                  const scopeAgencies = groupedAgencies?.[scope];
+                  if (!scopeAgencies?.length) return null;
+                  
+                  return (
+                    <div key={scope}>
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                        {AGENCY_SCOPES[scope]}
+                      </h3>
+                      <div className="space-y-2">
+                        {scopeAgencies.map((agency) => (
+                          <AgencyCard 
+                            key={agency.id} 
+                            agency={agency} 
+                            onSelect={handleSelectAgency}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Nenhum órgão encontrado para esta categoria na sua região
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+        
         {/* Action Buttons */}
         <div className="space-y-3">
           <Button 
@@ -195,27 +306,15 @@ ${APP_NAME}`
           </Button>
           
           {!isPending && report && (
-            <>
-              <Button 
-                onClick={() => navigate(`/encaminhar/${report.id}`)}
-                variant="outline"
-                className="w-full btn-touch"
-                size="lg"
-              >
-                <Send className="mr-2 h-5 w-5" />
-                Escolher órgão e enviar
-              </Button>
-              
-              <Button 
-                onClick={() => navigate(`/denuncia/${report.id}`)}
-                variant="ghost"
-                className="w-full btn-touch"
-                size="lg"
-              >
-                <Eye className="mr-2 h-5 w-5" />
-                Ver detalhes
-              </Button>
-            </>
+            <Button 
+              onClick={() => navigate(`/denuncia/${report.id}`)}
+              variant="ghost"
+              className="w-full btn-touch"
+              size="lg"
+            >
+              <Eye className="mr-2 h-5 w-5" />
+              Ver detalhes
+            </Button>
           )}
           
           <Button 
@@ -234,7 +333,7 @@ ${APP_NAME}`
           <p className="text-sm text-muted-foreground text-center">
             {isPending 
               ? '📴 Quando a conexão for restabelecida, sua denúncia será enviada automaticamente'
-              : '💡 Visualize o PDF e compartilhe junto com o e-mail para o órgão responsável'
+              : '💡 Clique em um órgão acima para abrir seu e-mail com a denúncia pronta'
             }
           </p>
         </div>
@@ -266,6 +365,66 @@ ${APP_NAME}`
         )}
       </main>
 
+      {/* Agency Detail Dialog */}
+      <Dialog open={!!selectedAgency} onOpenChange={() => setSelectedAgency(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedAgency?.name}</DialogTitle>
+            <DialogDescription>
+              {selectedAgency && AGENCY_SCOPES[selectedAgency.scope]}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <span className="text-sm flex-1 break-all">{selectedAgency?.email}</span>
+              <Button variant="ghost" size="icon" onClick={handleCopyEmail}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <Button onClick={handleOpenEmail} className="w-full btn-touch">
+              <Mail className="mr-2 h-5 w-5" />
+              Abrir e-mail pronto
+            </Button>
+            
+            <Button onClick={handleOpenPdfPreview} variant="outline" className="w-full btn-touch">
+              <Eye className="mr-2 h-5 w-5" />
+              Visualizar PDF
+            </Button>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              💡 Visualize o PDF e baixe para anexar ao e-mail
+            </p>
+            
+            {/* Anonymous email suggestion in dialog */}
+            <div className="pt-2 border-t border-border">
+              <div className="flex items-start gap-2 p-3 bg-primary/5 rounded-lg">
+                <Shield className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-foreground">
+                    Quer manter seu e-mail anônimo?
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full"
+                    onClick={() => {
+                      setSelectedAgency(null);
+                      setTempEmailGuideOpen(true);
+                    }}
+                  >
+                    <Shield className="h-3 w-3 mr-2" />
+                    Usar email temporário
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* PDF Preview Modal */}
       <PDFPreview
         open={pdfPreviewOpen}
@@ -279,7 +438,7 @@ ${APP_NAME}`
       <TempEmailGuide
         open={tempEmailGuideOpen}
         onOpenChange={setTempEmailGuideOpen}
-        recipientEmail="orgao@exemplo.gov.br"
+        recipientEmail={selectedAgency?.email || agencies?.[0]?.email || 'orgao@exemplo.gov.br'}
         emailSubject={emailSubject}
         emailBody={emailBody}
         pdf={generatedPdf}
