@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PDFPreview } from '@/components/PDFPreview';
 import { TempEmailGuide } from '@/components/TempEmailGuide';
 import { AgencyCard } from '@/components/AgencyCard';
+import { AISuggestedAgencies } from '@/components/AISuggestedAgencies';
 import { useReportByProtocol, useReportEvidences } from '@/hooks/useReports';
 import { useAgencies, type Agency } from '@/hooks/useAgencies';
 import { useOffline } from '@/contexts/OfflineContext';
@@ -284,11 +285,21 @@ ${APP_NAME}`
                 })}
               </div>
             ) : (
-              <div className="text-center py-6 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  Nenhum órgão encontrado para esta categoria na sua região
-                </p>
-              </div>
+              /* Use AI suggestions when no agencies in database */
+              <AISuggestedAgencies
+                uf={reportData.uf}
+                city={reportData.city}
+                category={reportData.category as CategoryKey}
+                reportData={{
+                  protocol: reportData.protocol,
+                  description: reportData.description,
+                  address_text: reportData.address_text || undefined,
+                  lat: reportData.lat || undefined,
+                  lng: reportData.lng || undefined,
+                  author_name: reportData.author_name || undefined,
+                  is_anonymous: reportData.is_anonymous,
+                }}
+              />
             )}
           </div>
         )}
