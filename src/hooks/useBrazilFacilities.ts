@@ -133,7 +133,12 @@ export function useBrazilFacilities(
         throw new Error('Failed to fetch facilities from OpenStreetMap');
       }
       
-      const data: OverpassResponse = await response.json();
+      const data: OverpassResponse & { remark?: string } = await response.json();
+
+      // Overpass sometimes returns 200 with a runtime error in `remark`
+      if (data.remark && data.remark.toLowerCase().includes('timed out')) {
+        throw new Error('Consulta grande demais: aproxime o zoom para carregar os locais.');
+      }
       
       // Convert to MapMarker format
       const markers: MapMarker[] = data.elements

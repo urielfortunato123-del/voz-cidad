@@ -27,6 +27,11 @@ interface MapContainerProps {
   zoom: number;
   markers: MapMarker[];
   onMarkerClick?: (marker: MapMarker) => void;
+  onViewportChange?: (viewport: {
+    center: [number, number];
+    zoom: number;
+    bbox: [number, number, number, number];
+  }) => void;
   className?: string;
 }
 
@@ -75,10 +80,29 @@ const getCategoryColor = (category?: CategoryKey, facilityType?: string): string
   return colors[category || ''] || '#666';
 };
 
-export function MapComponent({ center, zoom, markers, onMarkerClick, className }: MapContainerProps) {
+export function MapComponent({
+  center,
+  zoom,
+  markers,
+  onMarkerClick,
+  onViewportChange,
+  className,
+}: MapContainerProps) {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+
+  const emitViewport = () => {
+    const map = mapRef.current;
+    if (!map || !onViewportChange) return;
+    const b = map.getBounds();
+    const c = map.getCenter();
+    onViewportChange({
+      center: [c.lat, c.lng],
+      zoom: map.getZoom(),
+      bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
+    });
+  };
 
   // Initialize map
   useEffect(() => {
@@ -93,7 +117,14 @@ export function MapComponent({ center, zoom, markers, onMarkerClick, className }
     markersLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
+    // Emit initial viewport and on interactions
+    emitViewport();
+    map.on('moveend', emitViewport);
+    map.on('zoomend', emitViewport);
+
     return () => {
+      map.off('moveend', emitViewport);
+      map.off('zoomend', emitViewport);
       map.remove();
       mapRef.current = null;
       markersLayerRef.current = null;
@@ -104,6 +135,7 @@ export function MapComponent({ center, zoom, markers, onMarkerClick, className }
   useEffect(() => {
     if (mapRef.current) {
       mapRef.current.setView(center, zoom);
+      emitViewport();
     }
   }, [center, zoom]);
 
