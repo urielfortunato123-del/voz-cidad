@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, Loader2, MapPin, Search } from 'lucide-react';
+import { List, Loader2, MapPin, Search, Navigation } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,52 @@ export default function ReportsMap() {
     FACILITY_TYPES.map(f => f.key)
   );
   const [showReports, setShowReports] = useState(true);
-  
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Auto-detect user location on mount
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      setIsLocating(true);
+      setLocationError(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setMapCenter([pos.coords.latitude, pos.coords.longitude]);
+          setMapZoom(14);
+          setIsLocating(false);
+        },
+        (err) => {
+          console.log('Geolocation error:', err.message);
+          setLocationError('Não foi possível obter sua localização. Use a busca.');
+          setIsLocating(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    }
+  }, []);
+
+  const handleLocateMe = useCallback(() => {
+    if (!('geolocation' in navigator)) {
+      setLocationError('Geolocalização não suportada neste navegador.');
+      return;
+    }
+    setIsLocating(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setMapCenter([pos.coords.latitude, pos.coords.longitude]);
+        setMapZoom(14);
+        setIsLocating(false);
+        setFacilityErrorHint(null);
+      },
+      (err) => {
+        setLocationError('Não foi possível obter sua localização.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
   // Fetch reports with location
   const { data: reports, isLoading: isLoadingReports } = useQuery({
     queryKey: ['map-reports'],
@@ -192,21 +237,26 @@ export default function ReportsMap() {
                 <Input
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="Buscar cidade, bairro ou endereço (Brasil)"
+                  placeholder="Buscar cidade, bairro ou endereço"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSearch();
                   }}
                 />
-                <Button onClick={handleSearch} disabled={isSearching}>
+                <Button onClick={handleSearch} disabled={isSearching} size="icon">
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+                <Button onClick={handleLocateMe} disabled={isLocating} variant="outline" size="icon" title="Minha localização">
+                  {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Dica: para carregar UPAs/UBS/Hospitais/Escolas, aproxime o zoom (nível {MIN_ZOOM_FOR_FACILITIES}+).
+                {isLocating 
+                  ? 'Obtendo sua localização...' 
+                  : `Dica: aproxime o zoom (nível ${MIN_ZOOM_FOR_FACILITIES}+) para ver UPAs/UBS/Hospitais/Escolas.`}
               </p>
-              {(facilityErrorHint || facilitiesError) && (
+              {(facilityErrorHint || facilitiesError || locationError) && (
                 <p className="text-xs text-destructive mt-2">
-                  {facilityErrorHint || (facilitiesError instanceof Error ? facilitiesError.message : 'Erro ao carregar locais.')}
+                  {locationError || facilityErrorHint || (facilitiesError instanceof Error ? facilitiesError.message : 'Erro ao carregar locais.')}
                 </p>
               )}
             </CardContent>
