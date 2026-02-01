@@ -37,7 +37,7 @@ const formSchema = z.object({
   category: z.string().min(1, 'Selecione uma categoria'),
   subcategory: z.string().optional(),
   title: z.string().max(80).optional(),
-  description: z.string().min(1, 'Descrição é obrigatória').max(1000, 'Máximo 1000 caracteres'),
+  description: z.string().min(1, 'Descrição é obrigatória'),
   occurred_at: z.date(),
   address_text: z.string().optional(),
   is_anonymous: z.boolean(),
@@ -302,7 +302,6 @@ export default function NewReport() {
               {...register('description')}
               placeholder="Descreva o problema com detalhes... (ou use o microfone)"
               className="min-h-[150px] text-base"
-              maxLength={1000}
             />
             <div className="flex justify-between text-sm">
               {errors.description ? (
@@ -310,12 +309,8 @@ export default function NewReport() {
               ) : (
                 <span className="text-xs text-muted-foreground">💡 Toque no microfone para ditar</span>
               )}
-              <span className={cn(
-                'text-muted-foreground',
-                description.length > 900 && 'text-warning',
-                description.length >= 1000 && 'text-destructive'
-              )}>
-                {description.length}/{VALIDATION.DESCRIPTION_MAX}
+              <span className="text-muted-foreground">
+                {description.length} caracteres
               </span>
             </div>
           </div>
