@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, Loader2, MapPin, Search, Navigation, MousePointer } from 'lucide-react';
+import { List, Loader2, MapPin, Search, Navigation, MousePointer, ExternalLink } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
@@ -407,6 +407,34 @@ export default function ReportsMap() {
                     📍 Distância: {formatDistance(selectedMarker.distance)}
                   </p>
                 )}
+                
+                {/* Navigation buttons */}
+                <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedMarker.lat},${selectedMarker.lng}`;
+                      window.open(url, '_blank');
+                    }}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Google Maps
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      const url = `https://waze.com/ul?ll=${selectedMarker.lat},${selectedMarker.lng}&navigate=yes`;
+                      window.open(url, '_blank');
+                    }}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Waze
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
