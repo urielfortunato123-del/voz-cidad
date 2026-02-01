@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Copy, FileText, Eye, Loader2 } from 'lucide-react';
+import { Mail, Copy, FileText, Eye, Loader2, ExternalLink, Shield } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { AgencyCard } from '@/components/AgencyCard';
@@ -214,6 +214,39 @@ export default function ForwardReport() {
             <p className="text-xs text-muted-foreground text-center">
               💡 Visualize o PDF e baixe para anexar ao e-mail
             </p>
+            
+            {/* Anonymous email suggestion */}
+            <div className="pt-2 border-t border-border">
+              <div className="flex items-start gap-2 p-3 bg-primary/5 rounded-lg">
+                <Shield className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-foreground">
+                    Quer manter seu e-mail anônimo?
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use um serviço de e-mail temporário para enviar sua denúncia sem revelar seu e-mail pessoal:
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <a 
+                      href="https://temp-mail.org/pt/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      Temp Mail <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <a 
+                      href="https://www.emailondeck.com/pt/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      EmailOnDeck <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
