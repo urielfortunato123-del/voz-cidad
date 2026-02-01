@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Copy, FileText, Eye, Loader2, ExternalLink, Shield } from 'lucide-react';
+import { Mail, Copy, Eye, Loader2, Shield } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { AgencyCard } from '@/components/AgencyCard';
 import { PDFPreview } from '@/components/PDFPreview';
+import { TempEmailGuide } from '@/components/TempEmailGuide';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,6 +27,7 @@ export default function ForwardReport() {
   const { id } = useParams<{ id: string }>();
   const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [tempEmailGuideOpen, setTempEmailGuideOpen] = useState(false);
   const [generatedPdf, setGeneratedPdf] = useState<jsPDF | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
@@ -71,12 +73,10 @@ export default function ForwardReport() {
     }
   };
   
-  const handleOpenPdfPreview = async () => {
-    if (!report) return;
-    
-    setPdfPreviewOpen(true);
+  const generatePdf = async () => {
+    if (!report || generatedPdf) return;
+
     setIsGeneratingPdf(true);
-    
     try {
       const pdf = await generateReportPDF({
         protocol: report.protocol,
@@ -93,20 +93,46 @@ export default function ForwardReport() {
         author_name: report.author_name || undefined,
         author_contact: report.author_contact || undefined,
         created_at: report.created_at,
-        evidences: evidences?.map(e => ({ 
-          file_name: e.file_name, 
+        evidences: evidences?.map((e) => ({
+          file_name: e.file_name,
           file_url: e.file_url,
           file_type: e.file_type,
-          created_at: e.created_at 
+          created_at: e.created_at,
         })),
       });
-      
       setGeneratedPdf(pdf);
     } catch (error) {
       console.error('Error generating PDF:', error);
     } finally {
       setIsGeneratingPdf(false);
     }
+  };
+
+  const handleOpenPdfPreview = async () => {
+    setPdfPreviewOpen(true);
+    if (!generatedPdf) {
+      await generatePdf();
+    }
+  };
+
+  // Get email content for temp email guide
+  const getEmailContent = () => {
+    if (!report || !selectedAgency) return { subject: '', body: '' };
+    return generateEmailContent(
+      {
+        protocol: report.protocol,
+        uf: report.uf,
+        city: report.city,
+        category: report.category as CategoryKey,
+        description: report.description,
+        address_text: report.address_text || undefined,
+        lat: report.lat || undefined,
+        lng: report.lng || undefined,
+        author_name: report.author_name || undefined,
+        is_anonymous: report.is_anonymous,
+      },
+      selectedAgency.email
+    );
   };
   
   const isLoading = loadingReport || loadingAgencies;
@@ -224,49 +250,24 @@ export default function ForwardReport() {
                     Quer manter seu e-mail anônimo?
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Use um serviço de e-mail temporário para enviar sua denúncia sem revelar seu e-mail pessoal:
+                    Use um serviço de e-mail temporário para enviar sua denúncia.
                   </p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                    <a 
-                      href="https://temp-mail.org/pt/" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      Temp Mail <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <a 
-                      href="https://www.emailondeck.com/pt/" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      EmailOnDeck <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <a 
-                      href="https://www.guerrillamail.com/pt/" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      Guerrilla Mail <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <a 
-                      href="https://10minutemail.com/" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      10 Minute Mail <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full"
+                    onClick={() => setTempEmailGuideOpen(true)}
+                  >
+                    <Shield className="h-3 w-3 mr-2" />
+                    Usar email temporário
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* PDF Preview Modal */}
       <PDFPreview
         open={pdfPreviewOpen}
@@ -275,7 +276,22 @@ export default function ForwardReport() {
         filename={`denuncia-${report?.protocol}.pdf`}
         isLoading={isGeneratingPdf}
       />
-      
+
+      {/* Temp Email Guide */}
+      {selectedAgency && (
+        <TempEmailGuide
+          open={tempEmailGuideOpen}
+          onOpenChange={setTempEmailGuideOpen}
+          recipientEmail={selectedAgency.email}
+          emailSubject={getEmailContent().subject}
+          emailBody={getEmailContent().body}
+          pdf={generatedPdf}
+          pdfFilename={`denuncia-${report?.protocol}.pdf`}
+          onGeneratePdf={generatePdf}
+          isGeneratingPdf={isGeneratingPdf}
+        />
+      )}
+
       <BottomNav />
     </div>
   );

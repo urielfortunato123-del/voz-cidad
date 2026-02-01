@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CheckCircle, FileText, Send, Eye, Home, CloudOff, RefreshCw, Shield, ExternalLink } from 'lucide-react';
+import { CheckCircle, FileText, Send, Eye, Home, CloudOff, RefreshCw, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PDFPreview } from '@/components/PDFPreview';
+import { TempEmailGuide } from '@/components/TempEmailGuide';
 import { useReportByProtocol, useReportEvidences } from '@/hooks/useReports';
 import { useOffline } from '@/contexts/OfflineContext';
 import { generateReportPDF } from '@/lib/pdf';
@@ -25,16 +26,15 @@ export default function ReportSuccess() {
   const pendingReport = isOffline ? pendingReports.find(r => r.protocol === protocol) : null;
   
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [tempEmailGuideOpen, setTempEmailGuideOpen] = useState(false);
   const [generatedPdf, setGeneratedPdf] = useState<jsPDF | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
-  const handleOpenPdfPreview = async () => {
+  const generatePdf = async () => {
     const reportData = report || pendingReport;
-    if (!reportData) return;
-    
-    setPdfPreviewOpen(true);
+    if (!reportData || generatedPdf) return;
+
     setIsGeneratingPdf(true);
-    
     try {
       const pdf = await generateReportPDF({
         protocol: reportData.protocol,
@@ -51,14 +51,13 @@ export default function ReportSuccess() {
         author_name: reportData.author_name || undefined,
         author_contact: reportData.author_contact || undefined,
         created_at: reportData.created_at,
-        evidences: evidences?.map(e => ({ 
-          file_name: e.file_name, 
+        evidences: evidences?.map((e) => ({
+          file_name: e.file_name,
           file_url: e.file_url,
           file_type: e.file_type,
-          created_at: e.created_at 
+          created_at: e.created_at,
         })),
       });
-      
       setGeneratedPdf(pdf);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -66,6 +65,39 @@ export default function ReportSuccess() {
       setIsGeneratingPdf(false);
     }
   };
+
+  const handleOpenPdfPreview = async () => {
+    setPdfPreviewOpen(true);
+    if (!generatedPdf) {
+      await generatePdf();
+    }
+  };
+
+  // Generate email content for temp email guide
+  const reportData = report || pendingReport;
+  const emailSubject = reportData
+    ? `Denúncia Cidadã - Protocolo ${reportData.protocol} - ${CATEGORIES[reportData.category as CategoryKey]?.label || ''}`
+    : '';
+  const emailBody = reportData
+    ? `Prezado(a),
+
+Encaminho denúncia registrada através do aplicativo ${APP_NAME}.
+
+PROTOCOLO: ${reportData.protocol}
+CATEGORIA: ${CATEGORIES[reportData.category as CategoryKey]?.label || ''}
+LOCAL: ${reportData.city}/${reportData.uf}
+${reportData.address_text ? `ENDEREÇO: ${reportData.address_text}` : ''}
+
+DESCRIÇÃO:
+${reportData.description}
+
+${reportData.is_anonymous ? 'Esta denúncia foi registrada de forma anônima.' : `Denunciante: ${reportData.author_name || 'Não informado'}`}
+
+Segue em anexo o relatório completo em PDF.
+
+Atenciosamente,
+${APP_NAME}`
+    : '';
   
   if (isLoading && !isOffline) {
     return (
@@ -217,48 +249,23 @@ export default function ReportSuccess() {
                   Quer manter seu e-mail anônimo?
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Use um serviço de e-mail temporário para enviar sua denúncia sem revelar seu e-mail pessoal:
+                  Use um serviço de e-mail temporário para enviar sua denúncia sem revelar seu e-mail pessoal.
                 </p>
-                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
-                  <a 
-                    href="https://temp-mail.org/pt/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    Temp Mail <ExternalLink className="h-3 w-3" />
-                  </a>
-                  <a 
-                    href="https://www.emailondeck.com/pt/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    EmailOnDeck <ExternalLink className="h-3 w-3" />
-                  </a>
-                  <a 
-                    href="https://www.guerrillamail.com/pt/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    Guerrilla Mail <ExternalLink className="h-3 w-3" />
-                  </a>
-                  <a 
-                    href="https://10minutemail.com/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    10 Minute Mail <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setTempEmailGuideOpen(true)}
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Usar email temporário
+                </Button>
               </div>
             </div>
           </div>
         )}
       </main>
-      
+
       {/* PDF Preview Modal */}
       <PDFPreview
         open={pdfPreviewOpen}
@@ -266,6 +273,19 @@ export default function ReportSuccess() {
         pdf={generatedPdf}
         filename={`denuncia-${protocol}.pdf`}
         isLoading={isGeneratingPdf}
+      />
+
+      {/* Temp Email Guide */}
+      <TempEmailGuide
+        open={tempEmailGuideOpen}
+        onOpenChange={setTempEmailGuideOpen}
+        recipientEmail="orgao@exemplo.gov.br"
+        emailSubject={emailSubject}
+        emailBody={emailBody}
+        pdf={generatedPdf}
+        pdfFilename={`denuncia-${protocol}.pdf`}
+        onGeneratePdf={generatePdf}
+        isGeneratingPdf={isGeneratingPdf}
       />
     </div>
   );
