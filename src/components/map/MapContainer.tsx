@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { MapContainer as LeafletMapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { CategoryKey } from '@/lib/constants';
@@ -76,49 +75,68 @@ const getCategoryColor = (category?: CategoryKey, facilityType?: string): string
   return colors[category || ''] || '#666';
 };
 
-function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
-  const map = useMap();
-  
-  useEffect(() => {
-    map.setView(center, zoom);
-  }, [map, center, zoom]);
-  
-  return null;
-}
-
 export function MapComponent({ center, zoom, markers, onMarkerClick, className }: MapContainerProps) {
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = L.map(mapContainerRef.current).setView(center, zoom);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    markersLayerRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markersLayerRef.current = null;
+    };
+  }, []);
+
+  // Update center and zoom
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.setView(center, zoom);
+    }
+  }, [center, zoom]);
+
+  // Update markers
+  useEffect(() => {
+    if (!markersLayerRef.current) return;
+
+    markersLayerRef.current.clearLayers();
+
+    markers.forEach((marker) => {
+      const icon = createCustomIcon(getCategoryColor(marker.category, marker.facilityType));
+      
+      const leafletMarker = L.marker([marker.lat, marker.lng], { icon })
+        .bindPopup(`
+          <div style="padding: 4px;">
+            <h3 style="font-weight: 600; font-size: 14px; margin: 0;">${marker.title}</h3>
+            ${marker.description ? `<p style="font-size: 12px; color: #666; margin: 4px 0 0 0;">${marker.description}</p>` : ''}
+          </div>
+        `);
+      
+      if (onMarkerClick) {
+        leafletMarker.on('click', () => onMarkerClick(marker));
+      }
+      
+      markersLayerRef.current?.addLayer(leafletMarker);
+    });
+  }, [markers, onMarkerClick]);
+
   return (
-    <LeafletMapContainer
-      center={center}
-      zoom={zoom}
+    <div 
+      ref={mapContainerRef} 
       className={className}
       style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <MapUpdater center={center} zoom={zoom} />
-      
-      {markers.map((marker) => (
-        <Marker
-          key={marker.id}
-          position={[marker.lat, marker.lng]}
-          icon={createCustomIcon(getCategoryColor(marker.category, marker.facilityType))}
-          eventHandlers={{
-            click: () => onMarkerClick?.(marker),
-          }}
-        >
-          <Popup>
-            <div className="p-1">
-              <h3 className="font-semibold text-sm">{marker.title}</h3>
-              {marker.description && (
-                <p className="text-xs text-gray-600 mt-1">{marker.description}</p>
-              )}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </LeafletMapContainer>
+    />
   );
 }
