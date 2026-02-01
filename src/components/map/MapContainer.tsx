@@ -61,6 +61,7 @@ interface MapContainerProps {
     zoom: number;
     bbox: [number, number, number, number];
   }) => void;
+  onMapClick?: (latlng: [number, number]) => void;
   className?: string;
 }
 
@@ -159,6 +160,7 @@ export function MapComponent({
   userLocation,
   onMarkerClick,
   onViewportChange,
+  onMapClick,
   className,
 }: MapContainerProps) {
   const mapRef = useRef<L.Map | null>(null);
@@ -210,6 +212,21 @@ export function MapComponent({
       markersLayerRef.current = null;
     };
   }, []);
+
+  // Handle map click for manual location setting
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !onMapClick) return;
+
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      onMapClick([e.latlng.lat, e.latlng.lng]);
+    };
+
+    map.on('click', handleClick);
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [onMapClick]);
 
   // Update center and zoom
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, Loader2, MapPin, Search, Navigation } from 'lucide-react';
+import { List, Loader2, MapPin, Search, Navigation, MousePointer } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ export default function ReportsMap() {
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [isManualLocationMode, setIsManualLocationMode] = useState(false);
 
   // Auto-detect user location on mount
   useEffect(() => {
@@ -146,6 +147,14 @@ export default function ReportsMap() {
     },
     []
   );
+
+  const handleMapClick = useCallback((latlng: [number, number]) => {
+    if (isManualLocationMode) {
+      setUserLocation(latlng);
+      setIsManualLocationMode(false);
+      setLocationError(null);
+    }
+  }, [isManualLocationMode]);
 
   const handleSearch = useCallback(async () => {
     const q = searchText.trim();
@@ -267,14 +276,24 @@ export default function ReportsMap() {
                 <Button onClick={handleSearch} disabled={isSearching} size="icon">
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
-                <Button onClick={handleLocateMe} disabled={isLocating} variant="outline" size="icon" title="Minha localização">
+                <Button onClick={handleLocateMe} disabled={isLocating} variant="outline" size="icon" title="Minha localização (GPS)">
                   {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
+                </Button>
+                <Button 
+                  onClick={() => setIsManualLocationMode(!isManualLocationMode)} 
+                  variant={isManualLocationMode ? "default" : "outline"} 
+                  size="icon" 
+                  title="Definir localização no mapa"
+                >
+                  <MousePointer className="h-4 w-4" />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 {isLocating 
                   ? 'Obtendo sua localização...' 
-                  : `Dica: aproxime o zoom (nível ${MIN_ZOOM_FOR_FACILITIES}+) para ver UPAs/UBS/Hospitais/Escolas.`}
+                  : isManualLocationMode
+                    ? '👆 Clique no mapa para definir sua localização'
+                    : `Dica: aproxime o zoom (nível ${MIN_ZOOM_FOR_FACILITIES}+) para ver UPAs/UBS/Hospitais/Escolas.`}
               </p>
               {(facilityErrorHint || facilitiesError || locationError) && (
                 <p className="text-xs text-destructive mt-2">
@@ -328,7 +347,7 @@ export default function ReportsMap() {
           )}
           
           {/* Map */}
-          <Card className="card-elevated overflow-hidden">
+          <Card className={`card-elevated overflow-hidden ${isManualLocationMode ? 'ring-2 ring-primary' : ''}`}>
             <div className="relative h-[50vh] min-h-[400px]">
               {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
@@ -338,6 +357,11 @@ export default function ReportsMap() {
                   </div>
                 </div>
               )}
+              {isManualLocationMode && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-primary text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
+                  👆 Clique para definir sua localização
+                </div>
+              )}
               <MapComponent
                 center={mapCenter}
                 zoom={mapZoom}
@@ -345,6 +369,7 @@ export default function ReportsMap() {
                 userLocation={userLocation}
                 onMarkerClick={handleMarkerClick}
                 onViewportChange={handleViewportChange}
+                onMapClick={handleMapClick}
               />
             </div>
           </Card>
