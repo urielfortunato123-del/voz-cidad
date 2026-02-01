@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { List, Loader2, MapPin, Search, Navigation, MousePointer, ExternalLink } from 'lucide-react';
 import { Header } from '@/components/Header';
@@ -54,6 +54,8 @@ export default function ReportsMap() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isManualLocationMode, setIsManualLocationMode] = useState(false);
   const [radiusFilter, setRadiusFilter] = useState<number>(0); // 0 = no limit
+  const [debouncedBbox, setDebouncedBbox] = useState<[number, number, number, number] | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-detect user location on mount
   useEffect(() => {
@@ -118,13 +120,13 @@ export default function ReportsMap() {
     },
   });
   
-  // Fetch facilities from OpenStreetMap
-  const facilitiesEnabled = !!mapBbox && mapZoom >= MIN_ZOOM_FOR_FACILITIES;
+  // Fetch facilities from OpenStreetMap with debounced bbox
+  const facilitiesEnabled = !!debouncedBbox && mapZoom >= MIN_ZOOM_FOR_FACILITIES;
   const {
     data: facilities,
     isLoading: isLoadingFacilities,
     error: facilitiesError,
-  } = useBrazilFacilities(mapBbox, activeFilters, facilitiesEnabled);
+  } = useBrazilFacilities(debouncedBbox, activeFilters, facilitiesEnabled);
   
   const handleChangeLocation = () => {
     clearSelectedLocation();
@@ -147,7 +149,14 @@ export default function ReportsMap() {
     (viewport: { center: [number, number]; zoom: number; bbox: [number, number, number, number] }) => {
       setMapBbox(viewport.bbox);
       setMapZoom(viewport.zoom);
-      // don't constantly overwrite center while the user pans slightly; keep it for search
+      
+      // Debounce the bbox update for facilities fetching
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        setDebouncedBbox(viewport.bbox);
+      }, 500); // Wait 500ms after user stops panning
     },
     []
   );
