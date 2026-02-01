@@ -172,6 +172,7 @@ export function useBrazilFacilities(
     },
     enabled: enabled && !!bbox && facilityTypes.length > 0,
     staleTime: 1000 * 60 * 10, // 10 minutes cache
+    placeholderData: (previousData) => previousData, // Keep previous data while loading new
     retry: 2,
   });
 }
