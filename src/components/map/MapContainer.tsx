@@ -81,6 +81,7 @@ interface MapContainerProps {
   zoom: number;
   markers: MapMarker[];
   userLocation?: [number, number] | null;
+  flyToTrigger?: number; // Increment this to trigger a flyTo animation
   onMarkerClick?: (marker: MapMarker) => void;
   onViewportChange?: (viewport: {
     center: [number, number];
@@ -184,6 +185,7 @@ export function MapComponent({
   zoom,
   markers,
   userLocation,
+  flyToTrigger,
   onMarkerClick,
   onViewportChange,
   onMapClick,
@@ -273,13 +275,12 @@ export function MapComponent({
     };
   }, [onMapClick]);
 
-  // Update center and zoom
+  // Fly to center/zoom only when explicitly triggered
   useEffect(() => {
-    if (mapRef.current) {
-      mapRef.current.setView(center, zoom);
-      emitViewport();
+    if (mapRef.current && flyToTrigger !== undefined && flyToTrigger > 0) {
+      mapRef.current.flyTo(center, zoom, { duration: 0.5 });
     }
-  }, [center, zoom]);
+  }, [flyToTrigger]); // Only respond to flyToTrigger changes, not center/zoom
 
   // Update markers
   useEffect(() => {

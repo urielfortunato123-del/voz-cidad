@@ -56,6 +56,7 @@ export default function ReportsMap() {
   const [radiusFilter, setRadiusFilter] = useState<number>(0); // 0 = no limit
   const [debouncedBbox, setDebouncedBbox] = useState<[number, number, number, number] | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [flyToTrigger, setFlyToTrigger] = useState(0);
 
   // Auto-detect user location on mount
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function ReportsMap() {
           setMapCenter(coords);
           setUserLocation(coords);
           setMapZoom(14);
+          setFlyToTrigger(prev => prev + 1); // Trigger flyTo
           setIsLocating(false);
         },
         (err) => {
@@ -93,6 +95,7 @@ export default function ReportsMap() {
         setMapCenter(coords);
         setUserLocation(coords);
         setMapZoom(14);
+        setFlyToTrigger(prev => prev + 1); // Trigger flyTo
         setIsLocating(false);
         setFacilityErrorHint(null);
       },
@@ -198,6 +201,7 @@ export default function ReportsMap() {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('Resultado inválido.');
       setMapCenter([lat, lng]);
       setMapZoom(13);
+      setFlyToTrigger(prev => prev + 1); // Trigger flyTo
     } catch (e) {
       setFacilityErrorHint(e instanceof Error ? e.message : 'Erro ao buscar endereço.');
     } finally {
@@ -453,6 +457,7 @@ export default function ReportsMap() {
                 zoom={mapZoom}
                 markers={allMarkers}
                 userLocation={userLocation}
+                flyToTrigger={flyToTrigger}
                 onMarkerClick={handleMarkerClick}
                 onViewportChange={handleViewportChange}
                 onMapClick={handleMapClick}
