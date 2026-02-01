@@ -1,7 +1,33 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { CategoryKey } from '@/lib/constants';
+
+// Map tile layers
+const MAP_LAYERS = {
+  street: {
+    name: 'Ruas',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  satellite: {
+    name: 'Satélite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; Esri',
+  },
+  terrain: {
+    name: 'Terreno',
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+  },
+  dark: {
+    name: 'Escuro',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+  },
+} as const;
+
+type MapLayerKey = keyof typeof MAP_LAYERS;
 
 // Fix for default marker icons in Leaflet with Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -167,6 +193,8 @@ export function MapComponent({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const [activeLayer, setActiveLayer] = useState<MapLayerKey>('street');
 
   const emitViewport = () => {
     const map = mapRef.current;
@@ -192,8 +220,9 @@ export function MapComponent({
       boxZoom: true,
     }).setView(center, zoom);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    const layer = MAP_LAYERS[activeLayer];
+    tileLayerRef.current = L.tileLayer(layer.url, {
+      attribution: layer.attribution
     }).addTo(map);
 
     markersLayerRef.current = L.layerGroup().addTo(map);
@@ -210,8 +239,24 @@ export function MapComponent({
       map.remove();
       mapRef.current = null;
       markersLayerRef.current = null;
+      tileLayerRef.current = null;
     };
   }, []);
+
+  // Update tile layer when activeLayer changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !tileLayerRef.current) return;
+
+    const layer = MAP_LAYERS[activeLayer];
+    map.removeLayer(tileLayerRef.current);
+    tileLayerRef.current = L.tileLayer(layer.url, {
+      attribution: layer.attribution
+    }).addTo(map);
+    
+    // Move tile layer to back
+    tileLayerRef.current.bringToBack();
+  }, [activeLayer]);
 
   // Handle map click for manual location setting
   useEffect(() => {
@@ -291,10 +336,37 @@ export function MapComponent({
   }, [userLocation]);
 
   return (
-    <div 
-      ref={mapContainerRef} 
-      className={className}
-      style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}
-    />
+    <div className="relative h-full w-full">
+      {/* Layer Control */}
+      <div className="absolute top-2 right-2 z-[1000]">
+        <div className="bg-background border border-border rounded-lg shadow-lg overflow-hidden">
+          <div className="px-2 py-1.5 bg-muted/50 border-b border-border">
+            <span className="text-xs font-medium text-muted-foreground">Camadas</span>
+          </div>
+          <div className="p-1 flex flex-col gap-0.5">
+            {(Object.keys(MAP_LAYERS) as MapLayerKey[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => setActiveLayer(key)}
+                className={`px-3 py-1.5 text-xs rounded transition-colors text-left min-w-[80px] ${
+                  activeLayer === key
+                    ? 'bg-primary text-primary-foreground font-medium'
+                    : 'hover:bg-muted text-foreground'
+                }`}
+              >
+                {MAP_LAYERS[key].name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      {/* Map Container */}
+      <div 
+        ref={mapContainerRef} 
+        className={className}
+        style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}
+      />
+    </div>
   );
 }
