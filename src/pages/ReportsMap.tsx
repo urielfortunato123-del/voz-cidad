@@ -48,6 +48,7 @@ export default function ReportsMap() {
   const [showReports, setShowReports] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   // Auto-detect user location on mount
   useEffect(() => {
@@ -56,7 +57,9 @@ export default function ReportsMap() {
       setLocationError(null);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setMapCenter([pos.coords.latitude, pos.coords.longitude]);
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setMapCenter(coords);
+          setUserLocation(coords);
           setMapZoom(14);
           setIsLocating(false);
         },
@@ -79,7 +82,9 @@ export default function ReportsMap() {
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setMapCenter([pos.coords.latitude, pos.coords.longitude]);
+        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setMapCenter(coords);
+        setUserLocation(coords);
         setMapZoom(14);
         setIsLocating(false);
         setFacilityErrorHint(null);
@@ -320,6 +325,7 @@ export default function ReportsMap() {
                 center={mapCenter}
                 zoom={mapZoom}
                 markers={allMarkers}
+                userLocation={userLocation}
                 onMarkerClick={handleMarkerClick}
                 onViewportChange={handleViewportChange}
               />
