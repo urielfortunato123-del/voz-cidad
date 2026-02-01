@@ -1,6 +1,6 @@
 // Categories
 export const CATEGORIES = {
-  SAUDE: { label: 'Saúde', icon: 'Heart', color: 'category-saude' },
+  SAUDE: { label: 'Saúde Pública', icon: 'Heart', color: 'category-saude' },
   OBRAS: { label: 'Obras & Infraestrutura', icon: 'Construction', color: 'category-obras' },
   EDUCACAO: { label: 'Educação', icon: 'GraduationCap', color: 'category-educacao' },
   SERVICOS_URBANOS: { label: 'Serviços Urbanos', icon: 'Building', color: 'category-servicos' },
