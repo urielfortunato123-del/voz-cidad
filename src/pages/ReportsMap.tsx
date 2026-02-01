@@ -1,15 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, List, Loader2, AlertTriangle } from 'lucide-react';
+import { List, Loader2, AlertTriangle, MapPin } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CategoryTag } from '@/components/CategoryTag';
+import { MapComponent, type MapMarker } from '@/components/map/MapContainer';
+import { FacilityLegend, FACILITY_TYPES } from '@/components/map/FacilityLegend';
+import { useBrazilFacilities } from '@/hooks/useBrazilFacilities';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getSelectedLocation, clearSelectedLocation } from '@/lib/device';
 import { CATEGORIES, type CategoryKey } from '@/lib/constants';
+
+// Brazil center coordinates
+const BRAZIL_CENTER: [number, number] = [-14.235, -51.9253];
+const BRAZIL_ZOOM = 4;
+
+// Bounding box for Brazil [south, west, north, east]
+const BRAZIL_BBOX: [number, number, number, number] = [-33.75, -73.99, 5.27, -34.79];
 
 interface ReportWithLocation {
   id: string;
@@ -24,38 +34,81 @@ interface ReportWithLocation {
 export default function ReportsMap() {
   const navigate = useNavigate();
   const location = getSelectedLocation();
-  const [selectedReport, setSelectedReport] = useState<ReportWithLocation | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
+  const [activeFilters, setActiveFilters] = useState<string[]>(
+    FACILITY_TYPES.map(f => f.key)
+  );
+  const [showReports, setShowReports] = useState(true);
   
-  const { data: reports, isLoading } = useQuery({
-    queryKey: ['map-reports', location?.uf, location?.city],
+  // Fetch reports with location
+  const { data: reports, isLoading: isLoadingReports } = useQuery({
+    queryKey: ['map-reports'],
     queryFn: async () => {
-      if (!location) return [];
-      
       const { data, error } = await supabase
         .from('reports')
         .select('id, title, description, category, lat, lng, created_at')
-        .eq('uf', location.uf)
-        .eq('city', location.city)
         .not('lat', 'is', null)
-        .not('lng', 'is', null);
+        .not('lng', 'is', null)
+        .limit(500);
       
       if (error) throw error;
       return (data || []) as ReportWithLocation[];
     },
-    enabled: !!location,
   });
+  
+  // Fetch facilities from OpenStreetMap
+  const { data: facilities, isLoading: isLoadingFacilities } = useBrazilFacilities(
+    BRAZIL_BBOX,
+    activeFilters,
+    true
+  );
   
   const handleChangeLocation = () => {
     clearSelectedLocation();
     navigate('/selecionar-local');
   };
   
-  if (!location) {
-    navigate('/selecionar-local');
-    return null;
-  }
+  const handleFilterToggle = useCallback((key: string) => {
+    setActiveFilters(prev => 
+      prev.includes(key) 
+        ? prev.filter(f => f !== key)
+        : [...prev, key]
+    );
+  }, []);
   
-  // Group reports by approximate location for display
+  const handleMarkerClick = useCallback((marker: MapMarker) => {
+    setSelectedMarker(marker);
+  }, []);
+  
+  // Combine reports and facilities into markers
+  const allMarkers = useMemo(() => {
+    const markers: MapMarker[] = [];
+    
+    // Add report markers
+    if (showReports && reports) {
+      reports.forEach(report => {
+        markers.push({
+          id: `report-${report.id}`,
+          lat: report.lat,
+          lng: report.lng,
+          title: report.title || report.description.substring(0, 50) + '...',
+          description: new Date(report.created_at).toLocaleDateString('pt-BR'),
+          category: report.category,
+          type: 'report',
+        });
+      });
+    }
+    
+    // Add facility markers
+    if (facilities) {
+      markers.push(...facilities.filter(f => activeFilters.includes(f.facilityType || '')));
+    }
+    
+    return markers;
+  }, [reports, facilities, activeFilters, showReports]);
+  
+  const isLoading = isLoadingReports || isLoadingFacilities;
+  
   const getCategoryColor = (category: CategoryKey) => {
     const colors: Record<string, string> = {
       SAUDE: '#E91E63',
@@ -72,22 +125,41 @@ export default function ReportsMap() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header 
-        title="Mapa de Denúncias"
+        title="Mapa do Brasil"
         showLocation={location}
         onLocationClick={handleChangeLocation}
       />
       
       <main className="page-container">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : reports && reports.length > 0 ? (
-          <div className="space-y-4">
-            {/* Map Legend */}
+        <div className="space-y-4">
+          {/* Facility Filters */}
+          <FacilityLegend 
+            activeFilters={activeFilters} 
+            onFilterToggle={handleFilterToggle} 
+          />
+          
+          {/* Report toggle */}
+          <Card className="card-elevated">
+            <CardContent className="p-3">
+              <button
+                onClick={() => setShowReports(!showReports)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all w-full justify-center ${
+                  showReports 
+                    ? 'bg-primary/10 ring-1 ring-primary' 
+                    : 'bg-muted/50 opacity-60 hover:opacity-100'
+                }`}
+              >
+                <MapPin className="h-3 w-3" />
+                <span>Mostrar Denúncias ({reports?.length || 0})</span>
+              </button>
+            </CardContent>
+          </Card>
+          
+          {/* Category Legend for Reports */}
+          {showReports && (
             <Card className="card-elevated">
               <CardContent className="p-4">
-                <h3 className="font-semibold mb-3">Legenda</h3>
+                <h3 className="font-semibold mb-3 text-sm">Categorias de Denúncias</h3>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(CATEGORIES).map(([key, { label }]) => (
                     <div key={key} className="flex items-center gap-1.5">
@@ -101,109 +173,94 @@ export default function ReportsMap() {
                 </div>
               </CardContent>
             </Card>
-            
-            {/* Simple Map Visualization */}
-            <Card className="card-elevated overflow-hidden">
-              <div className="relative bg-muted aspect-square">
-                {/* Grid background */}
-                <div className="absolute inset-0 grid grid-cols-10 grid-rows-10">
-                  {Array.from({ length: 100 }).map((_, i) => (
-                    <div key={i} className="border border-border/30" />
-                  ))}
+          )}
+          
+          {/* Map */}
+          <Card className="card-elevated overflow-hidden">
+            <div className="relative h-[50vh] min-h-[400px]">
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Carregando mapa...</span>
+                  </div>
                 </div>
-                
-                {/* Report pins */}
-                {reports.map((report) => {
-                  // Normalize lat/lng to grid position (simplified)
-                  // This is a simplified visualization - in production, use a real map library
-                  const minLat = Math.min(...reports.map(r => r.lat));
-                  const maxLat = Math.max(...reports.map(r => r.lat));
-                  const minLng = Math.min(...reports.map(r => r.lng));
-                  const maxLng = Math.max(...reports.map(r => r.lng));
-                  
-                  const latRange = maxLat - minLat || 1;
-                  const lngRange = maxLng - minLng || 1;
-                  
-                  const x = ((report.lng - minLng) / lngRange) * 90 + 5;
-                  const y = ((maxLat - report.lat) / latRange) * 90 + 5;
-                  
-                  return (
-                    <button
-                      key={report.id}
-                      onClick={() => setSelectedReport(report)}
-                      className="absolute transform -translate-x-1/2 -translate-y-full transition-transform hover:scale-125 z-10"
-                      style={{ left: `${x}%`, top: `${y}%` }}
-                    >
-                      <MapPin 
-                        className="h-6 w-6 drop-shadow-md"
-                        style={{ color: getCategoryColor(report.category) }}
-                        fill={getCategoryColor(report.category)}
-                      />
-                    </button>
-                  );
-                })}
-                
-                {/* Center label */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="text-muted-foreground/50 text-sm">
-                    {location.city}/{location.uf}
-                  </span>
-                </div>
-              </div>
-            </Card>
-            
-            {/* Selected Report Card */}
-            {selectedReport && (
-              <Card className="card-elevated animate-in fade-in slide-in-from-bottom-4">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <CategoryTag category={selectedReport.category} />
+              )}
+              <MapComponent
+                center={BRAZIL_CENTER}
+                zoom={BRAZIL_ZOOM}
+                markers={allMarkers}
+                onMarkerClick={handleMarkerClick}
+              />
+            </div>
+          </Card>
+          
+          {/* Selected Marker Info */}
+          {selectedMarker && (
+            <Card className="card-elevated animate-in fade-in slide-in-from-bottom-4">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  {selectedMarker.type === 'report' && selectedMarker.category ? (
+                    <CategoryTag category={selectedMarker.category} />
+                  ) : (
+                    <span className="text-xs px-2 py-1 bg-primary/10 rounded-full text-primary font-medium">
+                      {getFacilityLabel(selectedMarker.facilityType || '')}
+                    </span>
+                  )}
+                  {selectedMarker.type === 'report' && (
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      onClick={() => navigate(`/denuncia/${selectedReport.id}`)}
+                      onClick={() => navigate(`/denuncia/${selectedMarker.id.replace('report-', '')}`)}
                     >
                       Ver detalhes
                     </Button>
-                  </div>
-                  <p className="text-sm font-medium">
-                    {selectedReport.title || selectedReport.description.substring(0, 60) + '...'}
-                  </p>
+                  )}
+                </div>
+                <p className="text-sm font-medium">{selectedMarker.title}</p>
+                {selectedMarker.description && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(selectedReport.created_at).toLocaleDateString('pt-BR')}
+                    {selectedMarker.description}
                   </p>
-                </CardContent>
-              </Card>
-            )}
-            
-            {/* Summary */}
-            <p className="text-center text-sm text-muted-foreground">
-              {reports.length} denúncia{reports.length !== 1 ? 's' : ''} com localização
-            </p>
-            
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => navigate('/denuncias')}
-            >
-              <List className="mr-2 h-4 w-4" />
-              Ver lista completa
-            </Button>
-          </div>
-        ) : (
-          <div className="text-center py-20">
-            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground mb-2">
-              Nenhuma denúncia com localização
-            </p>
-            <p className="text-sm text-muted-foreground">
-              As denúncias aparecerão aqui quando tiverem coordenadas GPS
+                )}
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Stats */}
+          <div className="text-center text-sm text-muted-foreground">
+            <p>
+              {allMarkers.length} marcadores no mapa
+              {reports?.length ? ` • ${reports.length} denúncias` : ''}
+              {facilities?.length ? ` • ${facilities.length} estabelecimentos` : ''}
             </p>
           </div>
-        )}
+          
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={() => navigate('/denuncias')}
+          >
+            <List className="mr-2 h-4 w-4" />
+            Ver lista de denúncias
+          </Button>
+        </div>
       </main>
       
       <BottomNav />
     </div>
   );
+}
+
+function getFacilityLabel(type: string): string {
+  const labels: Record<string, string> = {
+    hospital: 'Hospital',
+    upa: 'UPA',
+    ubs: 'UBS',
+    escola_municipal: 'Escola Municipal',
+    escola_estadual: 'Escola Estadual',
+    prefeitura: 'Prefeitura',
+    camara: 'Câmara Municipal',
+  };
+  return labels[type] || 'Estabelecimento';
 }
