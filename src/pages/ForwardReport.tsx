@@ -226,7 +226,7 @@ export default function ForwardReport() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Use um serviço de e-mail temporário para enviar sua denúncia sem revelar seu e-mail pessoal:
                   </p>
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
                     <a 
                       href="https://temp-mail.org/pt/" 
                       target="_blank" 
@@ -242,6 +242,22 @@ export default function ForwardReport() {
                       className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                     >
                       EmailOnDeck <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <a 
+                      href="https://www.guerrillamail.com/pt/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      Guerrilla Mail <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <a 
+                      href="https://10minutemail.com/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      10 Minute Mail <ExternalLink className="h-3 w-3" />
                     </a>
                   </div>
                 </div>
