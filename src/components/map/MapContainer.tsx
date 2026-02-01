@@ -20,6 +20,34 @@ export interface MapMarker {
   category?: CategoryKey;
   type?: 'report' | 'facility';
   facilityType?: string;
+  distance?: number; // distance in km from user
+}
+
+// Haversine formula to calculate distance between two points
+export function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export function formatDistance(km: number): string {
+  if (km < 1) {
+    return `${Math.round(km * 1000)} m`;
+  }
+  return `${km.toFixed(1)} km`;
 }
 
 interface MapContainerProps {
@@ -200,11 +228,16 @@ export function MapComponent({
     markers.forEach((marker) => {
       const icon = createCustomIcon(getCategoryColor(marker.category, marker.facilityType));
       
+      const distanceText = marker.distance !== undefined 
+        ? `<p style="font-size: 11px; color: #3B82F6; margin: 4px 0 0 0; font-weight: 500;">📍 ${formatDistance(marker.distance)}</p>`
+        : '';
+      
       const leafletMarker = L.marker([marker.lat, marker.lng], { icon })
         .bindPopup(`
           <div style="padding: 4px;">
             <h3 style="font-weight: 600; font-size: 14px; margin: 0;">${marker.title}</h3>
             ${marker.description ? `<p style="font-size: 12px; color: #666; margin: 4px 0 0 0;">${marker.description}</p>` : ''}
+            ${distanceText}
           </div>
         `);
       

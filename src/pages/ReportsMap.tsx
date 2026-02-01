@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { CategoryTag } from '@/components/CategoryTag';
-import { MapComponent, type MapMarker } from '@/components/map/MapContainer';
+import { MapComponent, type MapMarker, calculateDistance, formatDistance } from '@/components/map/MapContainer';
 import { FacilityLegend, FACILITY_TYPES } from '@/components/map/FacilityLegend';
 import { useBrazilFacilities } from '@/hooks/useBrazilFacilities';
 import { useQuery } from '@tanstack/react-query';
@@ -183,13 +183,16 @@ export default function ReportsMap() {
     }
   }, [searchText]);
   
-  // Combine reports and facilities into markers
+  // Combine reports and facilities into markers with distance
   const allMarkers = useMemo(() => {
     const markers: MapMarker[] = [];
     
     // Add report markers
     if (showReports && reports) {
       reports.forEach(report => {
+        const distance = userLocation 
+          ? calculateDistance(userLocation[0], userLocation[1], report.lat, report.lng)
+          : undefined;
         markers.push({
           id: `report-${report.id}`,
           lat: report.lat,
@@ -198,17 +201,31 @@ export default function ReportsMap() {
           description: new Date(report.created_at).toLocaleDateString('pt-BR'),
           category: report.category,
           type: 'report',
+          distance,
         });
       });
     }
     
-    // Add facility markers
+    // Add facility markers with distance
     if (facilities) {
-      markers.push(...facilities.filter(f => activeFilters.includes(f.facilityType || '')));
+      const filteredFacilities = facilities
+        .filter(f => activeFilters.includes(f.facilityType || ''))
+        .map(f => ({
+          ...f,
+          distance: userLocation 
+            ? calculateDistance(userLocation[0], userLocation[1], f.lat, f.lng)
+            : undefined,
+        }));
+      markers.push(...filteredFacilities);
+    }
+    
+    // Sort by distance if user location is available
+    if (userLocation) {
+      markers.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }
     
     return markers;
-  }, [reports, facilities, activeFilters, showReports]);
+  }, [reports, facilities, activeFilters, showReports, userLocation]);
   
   const isLoading = isLoadingReports || isLoadingFacilities;
   
@@ -358,6 +375,11 @@ export default function ReportsMap() {
                 {selectedMarker.description && (
                   <p className="text-xs text-muted-foreground mt-1">
                     {selectedMarker.description}
+                  </p>
+                )}
+                {selectedMarker.distance !== undefined && (
+                  <p className="text-xs text-primary font-medium mt-2">
+                    📍 Distância: {formatDistance(selectedMarker.distance)}
                   </p>
                 )}
               </CardContent>
