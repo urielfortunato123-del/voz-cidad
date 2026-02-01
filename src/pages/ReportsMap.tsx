@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, Loader2, AlertTriangle, MapPin } from 'lucide-react';
+import { List, Loader2, MapPin, Search } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { CategoryTag } from '@/components/CategoryTag';
 import { MapComponent, type MapMarker } from '@/components/map/MapContainer';
 import { FacilityLegend, FACILITY_TYPES } from '@/components/map/FacilityLegend';
@@ -18,8 +19,7 @@ import { CATEGORIES, type CategoryKey } from '@/lib/constants';
 const BRAZIL_CENTER: [number, number] = [-14.235, -51.9253];
 const BRAZIL_ZOOM = 4;
 
-// Bounding box for Brazil [south, west, north, east]
-const BRAZIL_BBOX: [number, number, number, number] = [-33.75, -73.99, 5.27, -34.79];
+const MIN_ZOOM_FOR_FACILITIES = 10;
 
 interface ReportWithLocation {
   id: string;
@@ -35,6 +35,13 @@ export default function ReportsMap() {
   const navigate = useNavigate();
   const location = getSelectedLocation();
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(BRAZIL_CENTER);
+  const [mapZoom, setMapZoom] = useState<number>(BRAZIL_ZOOM);
+  const [mapBbox, setMapBbox] = useState<[number, number, number, number] | null>(null);
+
+  const [searchText, setSearchText] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [facilityErrorHint, setFacilityErrorHint] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<string[]>(
     FACILITY_TYPES.map(f => f.key)
   );
@@ -57,11 +64,12 @@ export default function ReportsMap() {
   });
   
   // Fetch facilities from OpenStreetMap
-  const { data: facilities, isLoading: isLoadingFacilities } = useBrazilFacilities(
-    BRAZIL_BBOX,
-    activeFilters,
-    true
-  );
+  const facilitiesEnabled = !!mapBbox && mapZoom >= MIN_ZOOM_FOR_FACILITIES;
+  const {
+    data: facilities,
+    isLoading: isLoadingFacilities,
+    error: facilitiesError,
+  } = useBrazilFacilities(mapBbox, activeFilters, facilitiesEnabled);
   
   const handleChangeLocation = () => {
     clearSelectedLocation();
@@ -79,6 +87,51 @@ export default function ReportsMap() {
   const handleMarkerClick = useCallback((marker: MapMarker) => {
     setSelectedMarker(marker);
   }, []);
+
+  const handleViewportChange = useCallback(
+    (viewport: { center: [number, number]; zoom: number; bbox: [number, number, number, number] }) => {
+      setMapBbox(viewport.bbox);
+      setMapZoom(viewport.zoom);
+      // don't constantly overwrite center while the user pans slightly; keep it for search
+    },
+    []
+  );
+
+  const handleSearch = useCallback(async () => {
+    const q = searchText.trim();
+    if (!q) return;
+    setIsSearching(true);
+    setFacilityErrorHint(null);
+    try {
+      const url = new URL('https://nominatim.openstreetmap.org/search');
+      url.searchParams.set('format', 'json');
+      url.searchParams.set('q', q);
+      url.searchParams.set('countrycodes', 'br');
+      url.searchParams.set('limit', '1');
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Language': 'pt-BR',
+        },
+      });
+
+      if (!res.ok) throw new Error('Não foi possível buscar esse endereço.');
+      const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+      if (!data?.length) {
+        throw new Error('Nenhum resultado encontrado. Tente “Cidade/UF” ou um bairro.');
+      }
+      const lat = Number(data[0].lat);
+      const lng = Number(data[0].lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('Resultado inválido.');
+      setMapCenter([lat, lng]);
+      setMapZoom(13);
+    } catch (e) {
+      setFacilityErrorHint(e instanceof Error ? e.message : 'Erro ao buscar endereço.');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchText]);
   
   // Combine reports and facilities into markers
   const allMarkers = useMemo(() => {
@@ -132,6 +185,33 @@ export default function ReportsMap() {
       
       <main className="page-container">
         <div className="space-y-4">
+          {/* Search */}
+          <Card className="card-elevated">
+            <CardContent className="p-3">
+              <div className="flex gap-2">
+                <Input
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Buscar cidade, bairro ou endereço (Brasil)"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSearch();
+                  }}
+                />
+                <Button onClick={handleSearch} disabled={isSearching}>
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Dica: para carregar UPAs/UBS/Hospitais/Escolas, aproxime o zoom (nível {MIN_ZOOM_FOR_FACILITIES}+).
+              </p>
+              {(facilityErrorHint || facilitiesError) && (
+                <p className="text-xs text-destructive mt-2">
+                  {facilityErrorHint || (facilitiesError instanceof Error ? facilitiesError.message : 'Erro ao carregar locais.')}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Facility Filters */}
           <FacilityLegend 
             activeFilters={activeFilters} 
@@ -187,10 +267,11 @@ export default function ReportsMap() {
                 </div>
               )}
               <MapComponent
-                center={BRAZIL_CENTER}
-                zoom={BRAZIL_ZOOM}
+                center={mapCenter}
+                zoom={mapZoom}
                 markers={allMarkers}
                 onMarkerClick={handleMarkerClick}
+                onViewportChange={handleViewportChange}
               />
             </div>
           </Card>
