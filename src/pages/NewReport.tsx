@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CATEGORIES, VALIDATION, type CategoryKey } from '@/lib/constants';
+import { CATEGORIES, SUBCATEGORIES, VALIDATION, type CategoryKey } from '@/lib/constants';
 import { getSelectedLocation } from '@/lib/device';
 import { useCreateReport, useUploadEvidence } from '@/hooks/useReports';
 import { useOffline } from '@/contexts/OfflineContext';
@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   category: z.string().min(1, 'Selecione uma categoria'),
+  subcategory: z.string().optional(),
   title: z.string().max(80).optional(),
   description: z.string().min(1, 'Descrição é obrigatória').max(1000, 'Máximo 1000 caracteres'),
   occurred_at: z.date(),
@@ -77,6 +78,7 @@ export default function NewReport() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       category: '',
+      subcategory: '',
       title: '',
       description: '',
       occurred_at: new Date(),
@@ -89,6 +91,7 @@ export default function NewReport() {
     },
   });
   
+  const selectedCategory = watch('category') as CategoryKey | '';
   const isAnonymous = watch('is_anonymous');
   const description = watch('description') || '';
   const occurredAt = watch('occurred_at');
@@ -123,11 +126,16 @@ export default function NewReport() {
       return;
     }
     
+    // Build title with subcategory if provided
+    const fullTitle = data.subcategory 
+      ? (data.title ? `${data.title} (${data.subcategory})` : data.subcategory)
+      : (data.title || null);
+    
     const reportData = {
       uf: location.uf,
       city: location.city,
       category: data.category as CategoryKey,
-      title: data.title || null,
+      title: fullTitle,
       description: data.description,
       occurred_at: format(data.occurred_at, 'yyyy-MM-dd'),
       address_text: data.address_text || null,
@@ -228,7 +236,10 @@ export default function NewReport() {
           {/* Category */}
           <div className="space-y-2">
             <Label className="form-label">Categoria *</Label>
-            <Select onValueChange={(v) => setValue('category', v)}>
+            <Select onValueChange={(v) => {
+              setValue('category', v);
+              setValue('subcategory', ''); // Reset subcategory when category changes
+            }}>
               <SelectTrigger className="input-accessible">
                 <SelectValue placeholder="Selecione a categoria" />
               </SelectTrigger>
@@ -244,6 +255,25 @@ export default function NewReport() {
               <p className="text-sm text-destructive">{errors.category.message}</p>
             )}
           </div>
+          
+          {/* Subcategory - only show when category is selected */}
+          {selectedCategory && SUBCATEGORIES[selectedCategory] && (
+            <div className="space-y-2">
+              <Label className="form-label">Subcategoria</Label>
+              <Select onValueChange={(v) => setValue('subcategory', v)}>
+                <SelectTrigger className="input-accessible">
+                  <SelectValue placeholder="Selecione o tipo específico" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUBCATEGORIES[selectedCategory].map((sub) => (
+                    <SelectItem key={sub} value={sub}>
+                      {sub}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           
           {/* Title */}
           <div className="space-y-2">
