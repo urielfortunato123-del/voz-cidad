@@ -1,16 +1,17 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { List, Loader2, MapPin, Search, Navigation, MousePointer, ExternalLink } from 'lucide-react';
+import { List, Loader2, MapPin, Search, Navigation, MousePointer } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
-import { CategoryTag } from '@/components/CategoryTag';
-import { MapComponent, type MapMarker, calculateDistance, formatDistance } from '@/components/map/MapContainer';
+import { MapComponent, calculateDistance, type MapMarker, type MapLayerKey } from '@/components/map/MapContainer';
 import { FacilityLegend, FACILITY_TYPES } from '@/components/map/FacilityLegend';
+import { ReportCategoryFilter } from '@/components/map/ReportCategoryFilter';
+import { SelectedMarkerSheet } from '@/components/map/SelectedMarkerSheet';
 import { useBrazilFacilities } from '@/hooks/useBrazilFacilities';
+import { useMapPreferences } from '@/hooks/useMapPreferences';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getSelectedLocation, clearSelectedLocation } from '@/lib/device';
@@ -19,10 +20,8 @@ import { CATEGORIES, type CategoryKey } from '@/lib/constants';
 // Brazil center coordinates
 const BRAZIL_CENTER: [number, number] = [-14.235, -51.9253];
 const BRAZIL_ZOOM = 4;
-
 const MIN_ZOOM_FOR_FACILITIES = 10;
-
-const RADIUS_OPTIONS = [1, 2, 5, 10, 25, 50, 0]; // 0 = sem limite
+const RADIUS_OPTIONS = [1, 2, 5, 10, 25, 50, 0];
 
 interface ReportWithLocation {
   id: string;
@@ -37,23 +36,30 @@ interface ReportWithLocation {
 export default function ReportsMap() {
   const navigate = useNavigate();
   const location = getSelectedLocation();
+  
+  // Use persisted preferences
+  const {
+    preferences,
+    updatePreference,
+    toggleCategory,
+    toggleFacilityFilter,
+  } = useMapPreferences();
+  
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(BRAZIL_CENTER);
-  const [mapZoom, setMapZoom] = useState<number>(BRAZIL_ZOOM);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(
+    preferences.lastCenter ?? BRAZIL_CENTER
+  );
+  const [mapZoom, setMapZoom] = useState<number>(preferences.lastZoom ?? BRAZIL_ZOOM);
   const [mapBbox, setMapBbox] = useState<[number, number, number, number] | null>(null);
 
   const [searchText, setSearchText] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [facilityErrorHint, setFacilityErrorHint] = useState<string | null>(null);
-  const [activeFilters, setActiveFilters] = useState<string[]>(
-    FACILITY_TYPES.map(f => f.key)
-  );
-  const [showReports, setShowReports] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isManualLocationMode, setIsManualLocationMode] = useState(false);
-  const [radiusFilter, setRadiusFilter] = useState<number>(0); // 0 = no limit
   const [debouncedBbox, setDebouncedBbox] = useState<[number, number, number, number] | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [flyToTrigger, setFlyToTrigger] = useState(0);
@@ -69,7 +75,7 @@ export default function ReportsMap() {
           setMapCenter(coords);
           setUserLocation(coords);
           setMapZoom(14);
-          setFlyToTrigger(prev => prev + 1); // Trigger flyTo
+          setFlyToTrigger((prev) => prev + 1);
           setIsLocating(false);
         },
         (err) => {
@@ -95,11 +101,11 @@ export default function ReportsMap() {
         setMapCenter(coords);
         setUserLocation(coords);
         setMapZoom(14);
-        setFlyToTrigger(prev => prev + 1); // Trigger flyTo
+        setFlyToTrigger((prev) => prev + 1);
         setIsLocating(false);
         setFacilityErrorHint(null);
       },
-      (err) => {
+      () => {
         setLocationError('Não foi possível obter sua localização.');
         setIsLocating(false);
       },
@@ -117,60 +123,56 @@ export default function ReportsMap() {
         .not('lat', 'is', null)
         .not('lng', 'is', null)
         .limit(500);
-      
+
       if (error) throw error;
       return (data || []) as ReportWithLocation[];
     },
   });
-  
+
   // Fetch facilities from OpenStreetMap with debounced bbox
   const facilitiesEnabled = !!debouncedBbox && mapZoom >= MIN_ZOOM_FOR_FACILITIES;
   const {
     data: facilities,
     isLoading: isLoadingFacilities,
     error: facilitiesError,
-  } = useBrazilFacilities(debouncedBbox, activeFilters, facilitiesEnabled);
-  
+  } = useBrazilFacilities(debouncedBbox, preferences.activeFacilityFilters, facilitiesEnabled);
+
   const handleChangeLocation = () => {
     clearSelectedLocation();
     navigate('/selecionar-local');
   };
-  
-  const handleFilterToggle = useCallback((key: string) => {
-    setActiveFilters(prev => 
-      prev.includes(key) 
-        ? prev.filter(f => f !== key)
-        : [...prev, key]
-    );
-  }, []);
-  
+
   const handleMarkerClick = useCallback((marker: MapMarker) => {
     setSelectedMarker(marker);
+    setSheetOpen(true);
   }, []);
 
   const handleViewportChange = useCallback(
     (viewport: { center: [number, number]; zoom: number; bbox: [number, number, number, number] }) => {
       setMapBbox(viewport.bbox);
       setMapZoom(viewport.zoom);
-      
+
       // Debounce the bbox update for facilities fetching
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
       debounceTimerRef.current = setTimeout(() => {
         setDebouncedBbox(viewport.bbox);
-      }, 500); // Wait 500ms after user stops panning
+      }, 500);
     },
     []
   );
 
-  const handleMapClick = useCallback((latlng: [number, number]) => {
-    if (isManualLocationMode) {
-      setUserLocation(latlng);
-      setIsManualLocationMode(false);
-      setLocationError(null);
-    }
-  }, [isManualLocationMode]);
+  const handleMapClick = useCallback(
+    (latlng: [number, number]) => {
+      if (isManualLocationMode) {
+        setUserLocation(latlng);
+        setIsManualLocationMode(false);
+        setLocationError(null);
+      }
+    },
+    [isManualLocationMode]
+  );
 
   const handleSearch = useCallback(async () => {
     const q = searchText.trim();
@@ -186,7 +188,7 @@ export default function ReportsMap() {
 
       const res = await fetch(url.toString(), {
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Accept-Language': 'pt-BR',
         },
       });
@@ -194,37 +196,47 @@ export default function ReportsMap() {
       if (!res.ok) throw new Error('Não foi possível buscar esse endereço.');
       const data = (await res.json()) as Array<{ lat: string; lon: string }>;
       if (!data?.length) {
-        throw new Error('Nenhum resultado encontrado. Tente “Cidade/UF” ou um bairro.');
+        throw new Error('Nenhum resultado encontrado. Tente "Cidade/UF" ou um bairro.');
       }
       const lat = Number(data[0].lat);
       const lng = Number(data[0].lon);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('Resultado inválido.');
       setMapCenter([lat, lng]);
       setMapZoom(13);
-      setFlyToTrigger(prev => prev + 1); // Trigger flyTo
+      setFlyToTrigger((prev) => prev + 1);
     } catch (e) {
       setFacilityErrorHint(e instanceof Error ? e.message : 'Erro ao buscar endereço.');
     } finally {
       setIsSearching(false);
     }
   }, [searchText]);
-  
+
+  // Filter reports by active categories
+  const filteredReports = useMemo(() => {
+    if (!reports) return [];
+    return reports.filter((r) => preferences.activeCategories.includes(r.category));
+  }, [reports, preferences.activeCategories]);
+
   // Combine reports and facilities into markers with distance
   const allMarkers = useMemo(() => {
     const markers: MapMarker[] = [];
-    
+
     // Add report markers
-    if (showReports && reports) {
-      reports.forEach(report => {
-        const distance = userLocation 
+    if (preferences.showReports && filteredReports) {
+      filteredReports.forEach((report) => {
+        const distance = userLocation
           ? calculateDistance(userLocation[0], userLocation[1], report.lat, report.lng)
           : undefined;
-        
+
         // Apply radius filter
-        if (radiusFilter > 0 && userLocation && (distance === undefined || distance > radiusFilter)) {
+        if (
+          preferences.radiusFilter > 0 &&
+          userLocation &&
+          (distance === undefined || distance > preferences.radiusFilter)
+        ) {
           return;
         }
-        
+
         markers.push({
           id: `report-${report.id}`,
           lat: report.lat,
@@ -237,79 +249,73 @@ export default function ReportsMap() {
         });
       });
     }
-    
+
     // Add facility markers with distance
     if (facilities) {
       const filteredFacilities = facilities
-        .filter(f => activeFilters.includes(f.facilityType || ''))
-        .map(f => ({
+        .filter((f) => preferences.activeFacilityFilters.includes(f.facilityType || ''))
+        .map((f) => ({
           ...f,
-          distance: userLocation 
+          distance: userLocation
             ? calculateDistance(userLocation[0], userLocation[1], f.lat, f.lng)
             : undefined,
         }))
-        .filter(f => {
-          // Apply radius filter
-          if (radiusFilter > 0 && userLocation && (f.distance === undefined || f.distance > radiusFilter)) {
+        .filter((f) => {
+          if (
+            preferences.radiusFilter > 0 &&
+            userLocation &&
+            (f.distance === undefined || f.distance > preferences.radiusFilter)
+          ) {
             return false;
           }
           return true;
         });
       markers.push(...filteredFacilities);
     }
-    
+
     // Sort by distance if user location is available
     if (userLocation) {
       markers.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }
-    
+
     return markers;
-  }, [reports, facilities, activeFilters, showReports, userLocation, radiusFilter]);
-  
+  }, [filteredReports, facilities, preferences, userLocation]);
+
   // Count markers within each radius option for display
   const markersWithinRadius = useMemo(() => {
     if (!userLocation) return null;
-    
+
     const allWithDistance = [
-      ...(showReports && reports ? reports.map(r => ({
-        distance: calculateDistance(userLocation[0], userLocation[1], r.lat, r.lng)
-      })) : []),
-      ...(facilities ? facilities.filter(f => activeFilters.includes(f.facilityType || '')).map(f => ({
-        distance: calculateDistance(userLocation[0], userLocation[1], f.lat, f.lng)
-      })) : []),
+      ...(preferences.showReports && filteredReports
+        ? filteredReports.map((r) => ({
+            distance: calculateDistance(userLocation[0], userLocation[1], r.lat, r.lng),
+          }))
+        : []),
+      ...(facilities
+        ? facilities
+            .filter((f) => preferences.activeFacilityFilters.includes(f.facilityType || ''))
+            .map((f) => ({
+              distance: calculateDistance(userLocation[0], userLocation[1], f.lat, f.lng),
+            }))
+        : []),
     ];
-    
-    return RADIUS_OPTIONS.reduce((acc, radius) => {
-      acc[radius] = radius === 0 
-        ? allWithDistance.length 
-        : allWithDistance.filter(m => m.distance <= radius).length;
-      return acc;
-    }, {} as Record<number, number>);
-  }, [userLocation, reports, facilities, activeFilters, showReports]);
-  
+
+    return RADIUS_OPTIONS.reduce(
+      (acc, radius) => {
+        acc[radius] =
+          radius === 0 ? allWithDistance.length : allWithDistance.filter((m) => m.distance <= radius).length;
+        return acc;
+      },
+      {} as Record<number, number>
+    );
+  }, [userLocation, filteredReports, facilities, preferences]);
+
   const isLoading = isLoadingReports || isLoadingFacilities;
-  
-  const getCategoryColor = (category: CategoryKey) => {
-    const colors: Record<string, string> = {
-      SAUDE: '#E91E63',
-      OBRAS: '#FF9800',
-      EDUCACAO: '#2196F3',
-      SERVICOS_URBANOS: '#26A69A',
-      MEIO_AMBIENTE: '#4CAF50',
-      SEGURANCA: '#9C27B0',
-      CORRUPCAO: '#F44336',
-    };
-    return colors[category] || '#666';
-  };
-  
+
   return (
     <div className="min-h-screen bg-background pb-24">
-      <Header 
-        title="Mapa do Brasil"
-        showLocation={location}
-        onLocationClick={handleChangeLocation}
-      />
-      
+      <Header title="Mapa do Brasil" showLocation={location} onLocationClick={handleChangeLocation} />
+
       <main className="page-container">
         <div className="space-y-4">
           {/* Search */}
@@ -327,28 +333,36 @@ export default function ReportsMap() {
                 <Button onClick={handleSearch} disabled={isSearching} size="icon">
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
-                <Button onClick={handleLocateMe} disabled={isLocating} variant="outline" size="icon" title="Minha localização (GPS)">
+                <Button
+                  onClick={handleLocateMe}
+                  disabled={isLocating}
+                  variant="outline"
+                  size="icon"
+                  title="Minha localização (GPS)"
+                >
                   {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
                 </Button>
-                <Button 
-                  onClick={() => setIsManualLocationMode(!isManualLocationMode)} 
-                  variant={isManualLocationMode ? "default" : "outline"} 
-                  size="icon" 
+                <Button
+                  onClick={() => setIsManualLocationMode(!isManualLocationMode)}
+                  variant={isManualLocationMode ? 'default' : 'outline'}
+                  size="icon"
                   title="Definir localização no mapa"
                 >
                   <MousePointer className="h-4 w-4" />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {isLocating 
-                  ? 'Obtendo sua localização...' 
+                {isLocating
+                  ? 'Obtendo sua localização...'
                   : isManualLocationMode
                     ? '👆 Clique no mapa para definir sua localização'
                     : `Dica: aproxime o zoom (nível ${MIN_ZOOM_FOR_FACILITIES}+) para ver UPAs/UBS/Hospitais/Escolas.`}
               </p>
               {(facilityErrorHint || facilitiesError || locationError) && (
                 <p className="text-xs text-destructive mt-2">
-                  {locationError || facilityErrorHint || (facilitiesError instanceof Error ? facilitiesError.message : 'Erro ao carregar locais.')}
+                  {locationError ||
+                    facilityErrorHint ||
+                    (facilitiesError instanceof Error ? facilitiesError.message : 'Erro ao carregar locais.')}
                 </p>
               )}
             </CardContent>
@@ -361,32 +375,28 @@ export default function ReportsMap() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-sm">Filtrar por distância</h3>
                   <span className="text-xs text-primary font-medium">
-                    {radiusFilter === 0 ? 'Sem limite' : `Até ${radiusFilter} km`}
+                    {preferences.radiusFilter === 0 ? 'Sem limite' : `Até ${preferences.radiusFilter} km`}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {RADIUS_OPTIONS.map((radius) => (
                     <button
                       key={radius}
-                      onClick={() => setRadiusFilter(radius)}
+                      onClick={() => updatePreference('radiusFilter', radius)}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        radiusFilter === radius
+                        preferences.radiusFilter === radius
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                       }`}
                     >
                       {radius === 0 ? 'Todos' : `${radius} km`}
-                      {markersWithinRadius && (
-                        <span className="ml-1 opacity-70">
-                          ({markersWithinRadius[radius]})
-                        </span>
-                      )}
+                      {markersWithinRadius && <span className="ml-1 opacity-70">({markersWithinRadius[radius]})</span>}
                     </button>
                   ))}
                 </div>
-                {radiusFilter > 0 && (
+                {preferences.radiusFilter > 0 && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Mostrando {allMarkers.length} locais em até {radiusFilter} km
+                    Mostrando {allMarkers.length} locais em até {preferences.radiusFilter} km
                   </p>
                 )}
               </CardContent>
@@ -394,48 +404,33 @@ export default function ReportsMap() {
           )}
 
           {/* Facility Filters */}
-          <FacilityLegend 
-            activeFilters={activeFilters} 
-            onFilterToggle={handleFilterToggle} 
-          />
-          
-          {/* Report toggle */}
+          <FacilityLegend activeFilters={preferences.activeFacilityFilters} onFilterToggle={toggleFacilityFilter} />
+
+          {/* Report toggle & category filter */}
           <Card className="card-elevated">
-            <CardContent className="p-3">
+            <CardContent className="p-4 space-y-4">
               <button
-                onClick={() => setShowReports(!showReports)}
+                onClick={() => updatePreference('showReports', !preferences.showReports)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all w-full justify-center ${
-                  showReports 
-                    ? 'bg-primary/10 ring-1 ring-primary' 
+                  preferences.showReports
+                    ? 'bg-primary/10 ring-1 ring-primary'
                     : 'bg-muted/50 opacity-60 hover:opacity-100'
                 }`}
               >
                 <MapPin className="h-3 w-3" />
-                <span>Mostrar Denúncias ({reports?.length || 0})</span>
+                <span>Mostrar Denúncias ({filteredReports?.length || 0})</span>
               </button>
+
+              {preferences.showReports && (
+                <ReportCategoryFilter
+                  activeCategories={preferences.activeCategories}
+                  onCategoryToggle={toggleCategory}
+                  totalReports={filteredReports?.length}
+                />
+              )}
             </CardContent>
           </Card>
-          
-          {/* Category Legend for Reports */}
-          {showReports && (
-            <Card className="card-elevated">
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-3 text-sm">Categorias de Denúncias</h3>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(CATEGORIES).map(([key, { label }]) => (
-                    <div key={key} className="flex items-center gap-1.5">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: getCategoryColor(key as CategoryKey) }}
-                      />
-                      <span className="text-xs text-muted-foreground">{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
+
           {/* Map */}
           <Card className={`card-elevated overflow-hidden ${isManualLocationMode ? 'ring-2 ring-primary' : ''}`}>
             <div className="relative h-[50vh] min-h-[400px]">
@@ -458,112 +453,36 @@ export default function ReportsMap() {
                 markers={allMarkers}
                 userLocation={userLocation}
                 flyToTrigger={flyToTrigger}
+                activeLayer={preferences.layer}
+                enableClustering={true}
+                onLayerChange={(layer) => updatePreference('layer', layer)}
                 onMarkerClick={handleMarkerClick}
                 onViewportChange={handleViewportChange}
                 onMapClick={handleMapClick}
               />
             </div>
           </Card>
-          
-          {/* Selected Marker Info */}
-          {selectedMarker && (
-            <Card className="card-elevated animate-in fade-in slide-in-from-bottom-4">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  {selectedMarker.type === 'report' && selectedMarker.category ? (
-                    <CategoryTag category={selectedMarker.category} />
-                  ) : (
-                    <span className="text-xs px-2 py-1 bg-primary/10 rounded-full text-primary font-medium">
-                      {getFacilityLabel(selectedMarker.facilityType || '')}
-                    </span>
-                  )}
-                  {selectedMarker.type === 'report' && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => navigate(`/denuncia/${selectedMarker.id.replace('report-', '')}`)}
-                    >
-                      Ver detalhes
-                    </Button>
-                  )}
-                </div>
-                <p className="text-sm font-medium">{selectedMarker.title}</p>
-                {selectedMarker.description && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {selectedMarker.description}
-                  </p>
-                )}
-                {selectedMarker.distance !== undefined && (
-                  <p className="text-xs text-primary font-medium mt-2">
-                    📍 Distância: {formatDistance(selectedMarker.distance)}
-                  </p>
-                )}
-                
-                {/* Navigation buttons */}
-                <div className="flex gap-2 mt-3 pt-3 border-t border-border">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => {
-                      const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedMarker.lat},${selectedMarker.lng}`;
-                      window.open(url, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Google Maps
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => {
-                      const url = `https://waze.com/ul?ll=${selectedMarker.lat},${selectedMarker.lng}&navigate=yes`;
-                      window.open(url, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Waze
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
+
           {/* Stats */}
           <div className="text-center text-sm text-muted-foreground">
             <p>
               {allMarkers.length} marcadores no mapa
-              {reports?.length ? ` • ${reports.length} denúncias` : ''}
+              {filteredReports?.length ? ` • ${filteredReports.length} denúncias` : ''}
               {facilities?.length ? ` • ${facilities.length} estabelecimentos` : ''}
             </p>
           </div>
-          
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => navigate('/denuncias')}
-          >
+
+          <Button variant="outline" className="w-full" onClick={() => navigate('/denuncias')}>
             <List className="mr-2 h-4 w-4" />
             Ver lista de denúncias
           </Button>
         </div>
       </main>
-      
+
+      {/* Bottom sheet for selected marker (mobile-friendly) */}
+      <SelectedMarkerSheet marker={selectedMarker} open={sheetOpen} onOpenChange={setSheetOpen} />
+
       <BottomNav />
     </div>
   );
-}
-
-function getFacilityLabel(type: string): string {
-  const labels: Record<string, string> = {
-    hospital: 'Hospital',
-    upa: 'UPA',
-    ubs: 'UBS',
-    escola_municipal: 'Escola Municipal',
-    escola_estadual: 'Escola Estadual',
-    prefeitura: 'Prefeitura',
-    camara: 'Câmara Municipal',
-  };
-  return labels[type] || 'Estabelecimento';
 }

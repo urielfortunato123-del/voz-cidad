@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet.markercluster';
 import type { CategoryKey } from '@/lib/constants';
 
 // Map tile layers
-const MAP_LAYERS = {
+export const MAP_LAYERS = {
   street: {
     name: 'Ruas',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -27,7 +30,7 @@ const MAP_LAYERS = {
   },
 } as const;
 
-type MapLayerKey = keyof typeof MAP_LAYERS;
+export type MapLayerKey = keyof typeof MAP_LAYERS;
 
 // Fix for default marker icons in Leaflet with Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -46,7 +49,7 @@ export interface MapMarker {
   category?: CategoryKey;
   type?: 'report' | 'facility';
   facilityType?: string;
-  distance?: number; // distance in km from user
+  distance?: number;
 }
 
 // Haversine formula to calculate distance between two points
@@ -56,7 +59,7 @@ export function calculateDistance(
   lat2: number,
   lng2: number
 ): number {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -81,7 +84,10 @@ interface MapContainerProps {
   zoom: number;
   markers: MapMarker[];
   userLocation?: [number, number] | null;
-  flyToTrigger?: number; // Increment this to trigger a flyTo animation
+  flyToTrigger?: number;
+  activeLayer?: MapLayerKey;
+  enableClustering?: boolean;
+  onLayerChange?: (layer: MapLayerKey) => void;
   onMarkerClick?: (marker: MapMarker) => void;
   onViewportChange?: (viewport: {
     center: [number, number];
@@ -157,17 +163,17 @@ const createCustomIcon = (color: string) => {
 const getCategoryColor = (category?: CategoryKey, facilityType?: string): string => {
   if (facilityType) {
     const facilityColors: Record<string, string> = {
-      'hospital': '#E91E63',
-      'upa': '#F44336',
-      'ubs': '#FF5722',
-      'escola_municipal': '#2196F3',
-      'escola_estadual': '#3F51B5',
-      'prefeitura': '#9C27B0',
-      'camara': '#673AB7',
+      hospital: '#E91E63',
+      upa: '#F44336',
+      ubs: '#FF5722',
+      escola_municipal: '#2196F3',
+      escola_estadual: '#3F51B5',
+      prefeitura: '#9C27B0',
+      camara: '#673AB7',
     };
     return facilityColors[facilityType] || '#666';
   }
-  
+
   const colors: Record<string, string> = {
     SAUDE: '#E91E63',
     OBRAS: '#FF9800',
@@ -186,6 +192,9 @@ export function MapComponent({
   markers,
   userLocation,
   flyToTrigger,
+  activeLayer: externalActiveLayer,
+  enableClustering = true,
+  onLayerChange,
   onMarkerClick,
   onViewportChange,
   onMapClick,
@@ -193,12 +202,25 @@ export function MapComponent({
 }: MapContainerProps) {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const markersLayerRef = useRef<L.MarkerClusterGroup | L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
-  const [activeLayer, setActiveLayer] = useState<MapLayerKey>('street');
+  const [internalActiveLayer, setInternalActiveLayer] = useState<MapLayerKey>('street');
 
-  const emitViewport = () => {
+  const activeLayer = externalActiveLayer ?? internalActiveLayer;
+
+  const handleLayerChange = useCallback(
+    (layer: MapLayerKey) => {
+      if (onLayerChange) {
+        onLayerChange(layer);
+      } else {
+        setInternalActiveLayer(layer);
+      }
+    },
+    [onLayerChange]
+  );
+
+  const emitViewport = useCallback(() => {
     const map = mapRef.current;
     if (!map || !onViewportChange) return;
     const b = map.getBounds();
@@ -208,7 +230,7 @@ export function MapComponent({
       zoom: map.getZoom(),
       bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
     });
-  };
+  }, [onViewportChange]);
 
   // Initialize map
   useEffect(() => {
@@ -221,17 +243,29 @@ export function MapComponent({
       doubleClickZoom: true,
       boxZoom: true,
     }).setView(center, zoom);
-    
+
     const layer = MAP_LAYERS[activeLayer];
     tileLayerRef.current = L.tileLayer(layer.url, {
-      attribution: layer.attribution
+      attribution: layer.attribution,
     }).addTo(map);
 
-    markersLayerRef.current = L.layerGroup().addTo(map);
+    // Create cluster group or regular layer group
+    if (enableClustering) {
+      markersLayerRef.current = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 18,
+      }).addTo(map);
+    } else {
+      markersLayerRef.current = L.layerGroup().addTo(map);
+    }
+
     mapRef.current = map;
 
-    // Emit initial viewport and on interactions
-    emitViewport();
+    setTimeout(() => emitViewport(), 100);
     map.on('moveend', emitViewport);
     map.on('zoomend', emitViewport);
 
@@ -243,7 +277,7 @@ export function MapComponent({
       markersLayerRef.current = null;
       tileLayerRef.current = null;
     };
-  }, []);
+  }, [enableClustering]);
 
   // Update tile layer when activeLayer changes
   useEffect(() => {
@@ -253,10 +287,9 @@ export function MapComponent({
     const layer = MAP_LAYERS[activeLayer];
     map.removeLayer(tileLayerRef.current);
     tileLayerRef.current = L.tileLayer(layer.url, {
-      attribution: layer.attribution
+      attribution: layer.attribution,
     }).addTo(map);
-    
-    // Move tile layer to back
+
     tileLayerRef.current.bringToBack();
   }, [activeLayer]);
 
@@ -280,7 +313,7 @@ export function MapComponent({
     if (mapRef.current && flyToTrigger !== undefined && flyToTrigger > 0) {
       mapRef.current.flyTo(center, zoom, { duration: 0.5 });
     }
-  }, [flyToTrigger]); // Only respond to flyToTrigger changes, not center/zoom
+  }, [flyToTrigger]);
 
   // Update markers
   useEffect(() => {
@@ -290,24 +323,24 @@ export function MapComponent({
 
     markers.forEach((marker) => {
       const icon = createCustomIcon(getCategoryColor(marker.category, marker.facilityType));
-      
-      const distanceText = marker.distance !== undefined 
-        ? `<p style="font-size: 11px; color: #3B82F6; margin: 4px 0 0 0; font-weight: 500;">📍 ${formatDistance(marker.distance)}</p>`
-        : '';
-      
-      const leafletMarker = L.marker([marker.lat, marker.lng], { icon })
-        .bindPopup(`
-          <div style="padding: 4px;">
-            <h3 style="font-weight: 600; font-size: 14px; margin: 0;">${marker.title}</h3>
-            ${marker.description ? `<p style="font-size: 12px; color: #666; margin: 4px 0 0 0;">${marker.description}</p>` : ''}
-            ${distanceText}
-          </div>
-        `);
-      
+
+      const distanceText =
+        marker.distance !== undefined
+          ? `<p style="font-size: 11px; color: #3B82F6; margin: 4px 0 0 0; font-weight: 500;">📍 ${formatDistance(marker.distance)}</p>`
+          : '';
+
+      const leafletMarker = L.marker([marker.lat, marker.lng], { icon }).bindPopup(`
+        <div style="padding: 4px;">
+          <h3 style="font-weight: 600; font-size: 14px; margin: 0;">${marker.title}</h3>
+          ${marker.description ? `<p style="font-size: 12px; color: #666; margin: 4px 0 0 0;">${marker.description}</p>` : ''}
+          ${distanceText}
+        </div>
+      `);
+
       if (onMarkerClick) {
         leafletMarker.on('click', () => onMarkerClick(marker));
       }
-      
+
       markersLayerRef.current?.addLayer(leafletMarker);
     });
   }, [markers, onMarkerClick]);
@@ -317,13 +350,11 @@ export function MapComponent({
     const map = mapRef.current;
     if (!map) return;
 
-    // Remove existing user marker
     if (userMarkerRef.current) {
       map.removeLayer(userMarkerRef.current);
       userMarkerRef.current = null;
     }
 
-    // Add new user marker if location available
     if (userLocation) {
       const userIcon = createUserLocationIcon();
       userMarkerRef.current = L.marker(userLocation, { icon: userIcon, zIndexOffset: 1000 })
@@ -348,7 +379,7 @@ export function MapComponent({
             {(Object.keys(MAP_LAYERS) as MapLayerKey[]).map((key) => (
               <button
                 key={key}
-                onClick={() => setActiveLayer(key)}
+                onClick={() => handleLayerChange(key)}
                 className={`px-3 py-1.5 text-xs rounded transition-colors text-left min-w-[80px] ${
                   activeLayer === key
                     ? 'bg-primary text-primary-foreground font-medium'
@@ -361,14 +392,14 @@ export function MapComponent({
           </div>
         </div>
       </div>
-      
+
       {/* Map Container */}
-      <div 
-        ref={mapContainerRef} 
+      <div
+        ref={mapContainerRef}
         className={className}
         style={{ height: '100%', width: '100%', borderRadius: '0.75rem', zIndex: 0 }}
       />
-      
+
       {/* CSS to ensure map tiles stay behind UI */}
       <style>{`
         .leaflet-pane { z-index: 1 !important; }
@@ -378,6 +409,41 @@ export function MapComponent({
         .leaflet-tooltip-pane { z-index: 4 !important; }
         .leaflet-popup-pane { z-index: 5 !important; }
         .leaflet-control { z-index: 10 !important; }
+        .marker-cluster-small {
+          background-color: rgba(181, 226, 140, 0.6);
+        }
+        .marker-cluster-small div {
+          background-color: rgba(110, 204, 57, 0.6);
+        }
+        .marker-cluster-medium {
+          background-color: rgba(241, 211, 87, 0.6);
+        }
+        .marker-cluster-medium div {
+          background-color: rgba(240, 194, 12, 0.6);
+        }
+        .marker-cluster-large {
+          background-color: rgba(253, 156, 115, 0.6);
+        }
+        .marker-cluster-large div {
+          background-color: rgba(241, 128, 23, 0.6);
+        }
+        .marker-cluster {
+          background-clip: padding-box;
+          border-radius: 20px;
+        }
+        .marker-cluster div {
+          width: 30px;
+          height: 30px;
+          margin-left: 5px;
+          margin-top: 5px;
+          text-align: center;
+          border-radius: 15px;
+          font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+          font-weight: bold;
+        }
+        .marker-cluster span {
+          line-height: 30px;
+        }
       `}</style>
     </div>
   );
