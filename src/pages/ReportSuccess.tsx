@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CheckCircle, FileText, Send, Eye, Home, CloudOff, RefreshCw } from 'lucide-react';
+import { CheckCircle, FileText, Send, Eye, Home, CloudOff, RefreshCw, Shield, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PDFPreview } from '@/components/PDFPreview';
@@ -206,6 +206,57 @@ export default function ReportSuccess() {
             }
           </p>
         </div>
+        
+        {/* Anonymous email suggestion */}
+        {!isPending && (
+          <div className="mt-4 p-4 bg-primary/5 rounded-xl border border-primary/20">
+            <div className="flex items-start gap-3">
+              <Shield className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">
+                  Quer manter seu e-mail anônimo?
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use um serviço de e-mail temporário para enviar sua denúncia sem revelar seu e-mail pessoal:
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+                  <a 
+                    href="https://temp-mail.org/pt/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    Temp Mail <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <a 
+                    href="https://www.emailondeck.com/pt/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    EmailOnDeck <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <a 
+                    href="https://www.guerrillamail.com/pt/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    Guerrilla Mail <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <a 
+                    href="https://10minutemail.com/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    10 Minute Mail <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
       
       {/* PDF Preview Modal */}
