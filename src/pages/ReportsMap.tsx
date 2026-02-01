@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { CategoryTag } from '@/components/CategoryTag';
 import { MapComponent, type MapMarker, calculateDistance, formatDistance } from '@/components/map/MapContainer';
 import { FacilityLegend, FACILITY_TYPES } from '@/components/map/FacilityLegend';
@@ -20,6 +21,8 @@ const BRAZIL_CENTER: [number, number] = [-14.235, -51.9253];
 const BRAZIL_ZOOM = 4;
 
 const MIN_ZOOM_FOR_FACILITIES = 10;
+
+const RADIUS_OPTIONS = [1, 2, 5, 10, 25, 50, 0]; // 0 = sem limite
 
 interface ReportWithLocation {
   id: string;
@@ -50,6 +53,7 @@ export default function ReportsMap() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isManualLocationMode, setIsManualLocationMode] = useState(false);
+  const [radiusFilter, setRadiusFilter] = useState<number>(0); // 0 = no limit
 
   // Auto-detect user location on mount
   useEffect(() => {
@@ -202,6 +206,12 @@ export default function ReportsMap() {
         const distance = userLocation 
           ? calculateDistance(userLocation[0], userLocation[1], report.lat, report.lng)
           : undefined;
+        
+        // Apply radius filter
+        if (radiusFilter > 0 && userLocation && (distance === undefined || distance > radiusFilter)) {
+          return;
+        }
+        
         markers.push({
           id: `report-${report.id}`,
           lat: report.lat,
@@ -224,7 +234,14 @@ export default function ReportsMap() {
           distance: userLocation 
             ? calculateDistance(userLocation[0], userLocation[1], f.lat, f.lng)
             : undefined,
-        }));
+        }))
+        .filter(f => {
+          // Apply radius filter
+          if (radiusFilter > 0 && userLocation && (f.distance === undefined || f.distance > radiusFilter)) {
+            return false;
+          }
+          return true;
+        });
       markers.push(...filteredFacilities);
     }
     
@@ -234,7 +251,28 @@ export default function ReportsMap() {
     }
     
     return markers;
-  }, [reports, facilities, activeFilters, showReports, userLocation]);
+  }, [reports, facilities, activeFilters, showReports, userLocation, radiusFilter]);
+  
+  // Count markers within each radius option for display
+  const markersWithinRadius = useMemo(() => {
+    if (!userLocation) return null;
+    
+    const allWithDistance = [
+      ...(showReports && reports ? reports.map(r => ({
+        distance: calculateDistance(userLocation[0], userLocation[1], r.lat, r.lng)
+      })) : []),
+      ...(facilities ? facilities.filter(f => activeFilters.includes(f.facilityType || '')).map(f => ({
+        distance: calculateDistance(userLocation[0], userLocation[1], f.lat, f.lng)
+      })) : []),
+    ];
+    
+    return RADIUS_OPTIONS.reduce((acc, radius) => {
+      acc[radius] = radius === 0 
+        ? allWithDistance.length 
+        : allWithDistance.filter(m => m.distance <= radius).length;
+      return acc;
+    }, {} as Record<number, number>);
+  }, [userLocation, reports, facilities, activeFilters, showReports]);
   
   const isLoading = isLoadingReports || isLoadingFacilities;
   
@@ -302,6 +340,45 @@ export default function ReportsMap() {
               )}
             </CardContent>
           </Card>
+
+          {/* Radius Filter */}
+          {userLocation && (
+            <Card className="card-elevated">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm">Filtrar por distância</h3>
+                  <span className="text-xs text-primary font-medium">
+                    {radiusFilter === 0 ? 'Sem limite' : `Até ${radiusFilter} km`}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {RADIUS_OPTIONS.map((radius) => (
+                    <button
+                      key={radius}
+                      onClick={() => setRadiusFilter(radius)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        radiusFilter === radius
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                      }`}
+                    >
+                      {radius === 0 ? 'Todos' : `${radius} km`}
+                      {markersWithinRadius && (
+                        <span className="ml-1 opacity-70">
+                          ({markersWithinRadius[radius]})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {radiusFilter > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Mostrando {allMarkers.length} locais em até {radiusFilter} km
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Facility Filters */}
           <FacilityLegend 
