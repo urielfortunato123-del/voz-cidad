@@ -365,8 +365,19 @@ export function MapComponent({
       <div 
         ref={mapContainerRef} 
         className={className}
-        style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}
+        style={{ height: '100%', width: '100%', borderRadius: '0.75rem', zIndex: 0 }}
       />
+      
+      {/* CSS to ensure map tiles stay behind UI */}
+      <style>{`
+        .leaflet-pane { z-index: 1 !important; }
+        .leaflet-tile-pane { z-index: 1 !important; }
+        .leaflet-overlay-pane { z-index: 2 !important; }
+        .leaflet-marker-pane { z-index: 3 !important; }
+        .leaflet-tooltip-pane { z-index: 4 !important; }
+        .leaflet-popup-pane { z-index: 5 !important; }
+        .leaflet-control { z-index: 10 !important; }
+      `}</style>
     </div>
   );
 }
