@@ -123,32 +123,35 @@ export function ReportAnalyzer({ category, title, description, onApplySuggestion
           Corrigir texto
         </Button>
 
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleAnalysis('adapt')}
-            disabled={isDisabled || (isLoading && activeAnalysis === 'adapt')}
-            className="flex-1 justify-start text-xs h-9"
-          >
-            {isLoading && activeAnalysis === 'adapt' ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Languages className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            Adaptar
-          </Button>
-          <select
-            value={selectedProfile}
-            onChange={(e) => setSelectedProfile(e.target.value as UserProfile)}
-            className="h-9 text-xs rounded-md border border-input bg-background px-2"
-          >
-            {Object.entries(PROFILE_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => handleAnalysis('adapt')}
+          disabled={isDisabled || (isLoading && activeAnalysis === 'adapt')}
+          className="justify-start text-xs h-9"
+        >
+          {isLoading && activeAnalysis === 'adapt' ? (
+            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <Languages className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          Adaptar
+        </Button>
+      </div>
+
+      {/* Profile selector - separate row */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Perfil:</span>
+        <select
+          value={selectedProfile}
+          onChange={(e) => setSelectedProfile(e.target.value as UserProfile)}
+          className="flex-1 h-9 text-xs rounded-md border border-input bg-background px-3 appearance-none cursor-pointer"
+        >
+          {Object.entries(PROFILE_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
       </div>
 
       {isDisabled && (
