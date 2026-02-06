@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { STATUSES, type StatusKey } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
@@ -14,20 +15,39 @@ const COLORS: Record<StatusKey, string> = {
 interface StatusBadgeProps {
   status: StatusKey;
   className?: string;
+  animated?: boolean;
 }
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status, className, animated = true }: StatusBadgeProps) {
   const statusInfo = STATUSES[status];
   
+  if (!animated) {
+    return (
+      <span 
+        className={cn(
+          'status-badge transition-all duration-200',
+          COLORS[status],
+          className
+        )}
+      >
+        {statusInfo?.label || status}
+      </span>
+    );
+  }
+  
   return (
-    <span 
+    <motion.span 
       className={cn(
         'status-badge',
         COLORS[status],
         className
       )}
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      whileHover={{ scale: 1.05 }}
+      transition={{ type: "spring", stiffness: 400, damping: 20 }}
     >
       {statusInfo?.label || status}
-    </span>
+    </motion.span>
   );
 }
