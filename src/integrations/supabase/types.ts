@@ -58,6 +58,436 @@ export type Database = {
           },
         ]
       }
+      atlas_change_log: {
+        Row: {
+          action: Database["public"]["Enums"]["audit_action"]
+          after_data: Json | null
+          before_data: Json | null
+          created_at: string
+          entity: string
+          entity_id: string
+          id: string
+          ip_address: unknown
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["audit_action"]
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          entity: string
+          entity_id: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["audit_action"]
+          after_data?: Json | null
+          before_data?: Json | null
+          created_at?: string
+          entity?: string
+          entity_id?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      atlas_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          person_id: string
+          phone: string | null
+          social_links: Json | null
+          source_id: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          person_id: string
+          phone?: string | null
+          social_links?: Json | null
+          source_id?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          person_id?: string
+          phone?: string | null
+          social_links?: Json | null
+          source_id?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atlas_contacts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atlas_contacts_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atlas_elections: {
+        Row: {
+          coalition: string | null
+          cpf_hash: string | null
+          created_at: string
+          elected: boolean
+          id: string
+          location_id: string
+          office_id: string
+          party: string | null
+          person_name: string
+          round: number | null
+          source_id: string | null
+          votes: number | null
+          year: number
+        }
+        Insert: {
+          coalition?: string | null
+          cpf_hash?: string | null
+          created_at?: string
+          elected?: boolean
+          id?: string
+          location_id: string
+          office_id: string
+          party?: string | null
+          person_name: string
+          round?: number | null
+          source_id?: string | null
+          votes?: number | null
+          year: number
+        }
+        Update: {
+          coalition?: string | null
+          cpf_hash?: string | null
+          created_at?: string
+          elected?: boolean
+          id?: string
+          location_id?: string
+          office_id?: string
+          party?: string | null
+          person_name?: string
+          round?: number | null
+          source_id?: string | null
+          votes?: number | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atlas_elections_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atlas_elections_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atlas_elections_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atlas_jobs: {
+        Row: {
+          created_by: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          job_type: string
+          log: Json | null
+          records_created: number | null
+          records_failed: number | null
+          records_updated: number | null
+          started_at: string
+          status: Database["public"]["Enums"]["job_status"]
+          target_level: Database["public"]["Enums"]["location_level"] | null
+          target_location_id: string | null
+        }
+        Insert: {
+          created_by?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          job_type: string
+          log?: Json | null
+          records_created?: number | null
+          records_failed?: number | null
+          records_updated?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          target_level?: Database["public"]["Enums"]["location_level"] | null
+          target_location_id?: string | null
+        }
+        Update: {
+          created_by?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          log?: Json | null
+          records_created?: number | null
+          records_failed?: number | null
+          records_updated?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          target_level?: Database["public"]["Enums"]["location_level"] | null
+          target_location_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atlas_jobs_target_location_id_fkey"
+            columns: ["target_location_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atlas_locations: {
+        Row: {
+          created_at: string
+          ibge_code: string | null
+          id: string
+          level: Database["public"]["Enums"]["location_level"]
+          name: string
+          region: string | null
+          uf: string | null
+        }
+        Insert: {
+          created_at?: string
+          ibge_code?: string | null
+          id?: string
+          level: Database["public"]["Enums"]["location_level"]
+          name: string
+          region?: string | null
+          uf?: string | null
+        }
+        Update: {
+          created_at?: string
+          ibge_code?: string | null
+          id?: string
+          level?: Database["public"]["Enums"]["location_level"]
+          name?: string
+          region?: string | null
+          uf?: string | null
+        }
+        Relationships: []
+      }
+      atlas_mandates: {
+        Row: {
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          created_at: string
+          end_date: string | null
+          id: string
+          location_id: string
+          notes: string | null
+          office_id: string
+          person_id: string
+          source_id: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["mandate_status"]
+          updated_at: string
+        }
+        Insert: {
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          location_id: string
+          notes?: string | null
+          office_id: string
+          person_id: string
+          source_id?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["mandate_status"]
+          updated_at?: string
+        }
+        Update: {
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          location_id?: string
+          notes?: string | null
+          office_id?: string
+          person_id?: string
+          source_id?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["mandate_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atlas_mandates_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atlas_mandates_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atlas_mandates_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atlas_mandates_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atlas_offices: {
+        Row: {
+          category: Database["public"]["Enums"]["office_category"]
+          created_at: string
+          id: string
+          is_elective: boolean
+          level: Database["public"]["Enums"]["location_level"]
+          name: string
+          parent_office_id: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["office_category"]
+          created_at?: string
+          id?: string
+          is_elective?: boolean
+          level: Database["public"]["Enums"]["location_level"]
+          name: string
+          parent_office_id?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["office_category"]
+          created_at?: string
+          id?: string
+          is_elective?: boolean
+          level?: Database["public"]["Enums"]["location_level"]
+          name?: string
+          parent_office_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atlas_offices_parent_office_id_fkey"
+            columns: ["parent_office_id"]
+            isOneToOne: false
+            referencedRelation: "atlas_offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      atlas_people: {
+        Row: {
+          birth_date: string | null
+          cpf_hash: string | null
+          created_at: string
+          full_name: string
+          gender: string | null
+          id: string
+          party: string | null
+          photo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          birth_date?: string | null
+          cpf_hash?: string | null
+          created_at?: string
+          full_name: string
+          gender?: string | null
+          id?: string
+          party?: string | null
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string | null
+          cpf_hash?: string | null
+          created_at?: string
+          full_name?: string
+          gender?: string | null
+          id?: string
+          party?: string | null
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      atlas_sources: {
+        Row: {
+          collected_at: string
+          created_at: string
+          domain_type: Database["public"]["Enums"]["source_domain_type"]
+          id: string
+          method: Database["public"]["Enums"]["source_method"]
+          notes: string | null
+          publisher: string | null
+          title: string
+          url: string | null
+        }
+        Insert: {
+          collected_at?: string
+          created_at?: string
+          domain_type?: Database["public"]["Enums"]["source_domain_type"]
+          id?: string
+          method?: Database["public"]["Enums"]["source_method"]
+          notes?: string | null
+          publisher?: string | null
+          title: string
+          url?: string | null
+        }
+        Update: {
+          collected_at?: string
+          created_at?: string
+          domain_type?: Database["public"]["Enums"]["source_domain_type"]
+          id?: string
+          method?: Database["public"]["Enums"]["source_method"]
+          notes?: string | null
+          publisher?: string | null
+          title?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       confirmations: {
         Row: {
           created_at: string
@@ -409,6 +839,18 @@ export type Database = {
     Enums: {
       agency_scope: "MUNICIPAL" | "ESTADUAL" | "FEDERAL"
       app_role: "admin" | "moderator" | "user"
+      audit_action: "CREATE" | "UPDATE" | "DELETE"
+      confidence_level: "CONFIRMADO" | "NAO_CONFIRMADO"
+      job_status: "RUNNING" | "SUCCESS" | "PARTIAL" | "FAILED"
+      location_level: "MUNICIPAL" | "ESTADUAL" | "FEDERAL"
+      mandate_status:
+        | "ELEITO"
+        | "EM_EXERCICIO"
+        | "SUPLENTE"
+        | "AFASTADO"
+        | "EXONERADO"
+        | "DESCONHECIDO"
+      office_category: "EXECUTIVO" | "LEGISLATIVO" | "SECRETARIA" | "AUTARQUIA"
       report_category:
         | "SAUDE"
         | "OBRAS"
@@ -425,6 +867,8 @@ export type Database = {
         | "RESOLVIDA"
         | "ARQUIVADA"
         | "SOB_REVISAO"
+      source_domain_type: "GOV_BR" | "CAMARA" | "SENADO" | "TSE" | "OUTRO"
+      source_method: "API" | "MANUAL" | "IMPORT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -554,6 +998,19 @@ export const Constants = {
     Enums: {
       agency_scope: ["MUNICIPAL", "ESTADUAL", "FEDERAL"],
       app_role: ["admin", "moderator", "user"],
+      audit_action: ["CREATE", "UPDATE", "DELETE"],
+      confidence_level: ["CONFIRMADO", "NAO_CONFIRMADO"],
+      job_status: ["RUNNING", "SUCCESS", "PARTIAL", "FAILED"],
+      location_level: ["MUNICIPAL", "ESTADUAL", "FEDERAL"],
+      mandate_status: [
+        "ELEITO",
+        "EM_EXERCICIO",
+        "SUPLENTE",
+        "AFASTADO",
+        "EXONERADO",
+        "DESCONHECIDO",
+      ],
+      office_category: ["EXECUTIVO", "LEGISLATIVO", "SECRETARIA", "AUTARQUIA"],
       report_category: [
         "SAUDE",
         "OBRAS",
@@ -572,6 +1029,8 @@ export const Constants = {
         "ARQUIVADA",
         "SOB_REVISAO",
       ],
+      source_domain_type: ["GOV_BR", "CAMARA", "SENADO", "TSE", "OUTRO"],
+      source_method: ["API", "MANUAL", "IMPORT"],
     },
   },
 } as const
