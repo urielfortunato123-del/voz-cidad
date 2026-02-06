@@ -127,13 +127,18 @@ export function PublicOfficialSelector({
     gcTime: 1000 * 60 * 60, // 1 hour
   });
 
-  // Group officials by scope
+  // Group officials by scope - prioritize city officials when city is selected
   const groupedOfficials = useMemo(() => {
-    const filtered = officials.filter(off => 
-      off.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ROLE_LABELS[off.role]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      off.party?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let filtered = officials;
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(off => 
+        off.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ROLE_LABELS[off.role]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        off.party?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
     const groups: Record<string, PublicOfficial[]> = {
       'MUNICIPAL': [],
@@ -143,12 +148,19 @@ export function PublicOfficialSelector({
 
     filtered.forEach(off => {
       if (groups[off.scope]) {
-        groups[off.scope].push(off);
+        // For municipal, only show officials from the selected city
+        if (off.scope === 'MUNICIPAL') {
+          if (city && off.city === city) {
+            groups[off.scope].push(off);
+          }
+        } else {
+          groups[off.scope].push(off);
+        }
       }
     });
 
     return groups;
-  }, [officials, searchTerm]);
+  }, [officials, searchTerm, city]);
 
   const totalOfficials = officials.length;
   const hasOfficials = totalOfficials > 0;
