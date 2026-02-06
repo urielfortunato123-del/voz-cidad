@@ -222,6 +222,68 @@ export type Database = {
         }
         Relationships: []
       }
+      public_officials: {
+        Row: {
+          active: boolean
+          category_tags: string[]
+          city: string | null
+          created_at: string
+          email: string | null
+          external_id: string
+          id: string
+          name: string
+          party: string | null
+          phone: string | null
+          photo_url: string | null
+          role: string
+          scope: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category_tags?: string[]
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          external_id: string
+          id?: string
+          name: string
+          party?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          role: string
+          scope: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category_tags?: string[]
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          external_id?: string
+          id?: string
+          name?: string
+          party?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          role?: string
+          scope?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_officials_uf_fkey"
+            columns: ["uf"]
+            isOneToOne: false
+            referencedRelation: "locations_states"
+            referencedColumns: ["uf"]
+          },
+        ]
+      }
       reports: {
         Row: {
           address_text: string | null
@@ -242,6 +304,7 @@ export type Database = {
           protocol: string
           show_name_publicly: boolean
           status: Database["public"]["Enums"]["report_status"]
+          target_official_id: string | null
           title: string | null
           uf: string
         }
@@ -264,6 +327,7 @@ export type Database = {
           protocol: string
           show_name_publicly?: boolean
           status?: Database["public"]["Enums"]["report_status"]
+          target_official_id?: string | null
           title?: string | null
           uf: string
         }
@@ -286,10 +350,18 @@ export type Database = {
           protocol?: string
           show_name_publicly?: boolean
           status?: Database["public"]["Enums"]["report_status"]
+          target_official_id?: string | null
           title?: string | null
           uf?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "reports_target_official_id_fkey"
+            columns: ["target_official_id"]
+            isOneToOne: false
+            referencedRelation: "public_officials"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reports_uf_fkey"
             columns: ["uf"]
