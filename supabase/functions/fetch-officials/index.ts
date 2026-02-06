@@ -54,6 +54,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 async function fetchDeputadosFederais(uf: string): Promise<Official[]> {
   try {
+    // First get the list of deputies
     const response = await fetch(
       `https://dadosabertos.camara.leg.br/api/v2/deputados?siglaUf=${uf}&ordem=nome&ordenarPor=nome&itens=100`,
       { headers: { 'Accept': 'application/json' } }
@@ -65,20 +66,70 @@ async function fetchDeputadosFederais(uf: string): Promise<Official[]> {
     }
     
     const data = await response.json();
+    const deputies = data.dados || [];
     
-    return (data.dados || []).map((dep: any) => ({
-      external_id: `DEP_FED_${dep.id}`,
-      name: dep.nome,
-      role: 'DEPUTADO_FEDERAL',
-      photo_url: dep.urlFoto || null,
-      party: dep.siglaPartido || null,
-      uf: dep.siglaUf,
-      city: null,
-      category_tags: [],
-      scope: 'FEDERAL',
-      email: dep.email || null,
-      phone: null,
-    }));
+    // Fetch detailed info for each deputy (in batches to avoid rate limiting)
+    const detailedDeputies: Official[] = [];
+    
+    for (const dep of deputies) {
+      try {
+        const detailResponse = await fetch(
+          `https://dadosabertos.camara.leg.br/api/v2/deputados/${dep.id}`,
+          { headers: { 'Accept': 'application/json' } }
+        );
+        
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json();
+          const detail = detailData.dados;
+          
+          detailedDeputies.push({
+            external_id: `DEP_FED_${dep.id}`,
+            name: dep.nome,
+            role: 'DEPUTADO_FEDERAL',
+            photo_url: dep.urlFoto || null,
+            party: dep.siglaPartido || null,
+            uf: dep.siglaUf,
+            city: detail?.municipioNascimento || null,
+            category_tags: [],
+            scope: 'FEDERAL',
+            email: detail?.ultimoStatus?.gabinete?.email || dep.email || null,
+            phone: detail?.ultimoStatus?.gabinete?.telefone || null,
+          });
+        } else {
+          // Fallback to basic info
+          detailedDeputies.push({
+            external_id: `DEP_FED_${dep.id}`,
+            name: dep.nome,
+            role: 'DEPUTADO_FEDERAL',
+            photo_url: dep.urlFoto || null,
+            party: dep.siglaPartido || null,
+            uf: dep.siglaUf,
+            city: null,
+            category_tags: [],
+            scope: 'FEDERAL',
+            email: dep.email || null,
+            phone: null,
+          });
+        }
+      } catch (detailError) {
+        // Fallback to basic info on error
+        detailedDeputies.push({
+          external_id: `DEP_FED_${dep.id}`,
+          name: dep.nome,
+          role: 'DEPUTADO_FEDERAL',
+          photo_url: dep.urlFoto || null,
+          party: dep.siglaPartido || null,
+          uf: dep.siglaUf,
+          city: null,
+          category_tags: [],
+          scope: 'FEDERAL',
+          email: dep.email || null,
+          phone: null,
+        });
+      }
+    }
+    
+    return detailedDeputies;
   } catch (error) {
     console.error('Erro ao buscar deputados federais:', error);
     return [];
@@ -100,22 +151,81 @@ async function fetchSenadores(uf: string): Promise<Official[]> {
     const data = await response.json();
     const parlamentares = data?.ListaParlamentarEmExercicio?.Parlamentares?.Parlamentar || [];
     
-    return parlamentares.map((sen: any) => {
+    // Fetch detailed info for each senator
+    const detailedSenators: Official[] = [];
+    
+    for (const sen of parlamentares) {
       const identificacao = sen.IdentificacaoParlamentar || {};
-      return {
-        external_id: `SEN_${identificacao.CodigoParlamentar}`,
-        name: identificacao.NomeParlamentar || identificacao.NomeCompletoParlamentar,
-        role: 'SENADOR',
-        photo_url: identificacao.UrlFotoParlamentar || null,
-        party: identificacao.SiglaPartidoParlamentar || null,
-        uf: identificacao.UfParlamentar || uf,
-        city: null,
-        category_tags: [],
-        scope: 'FEDERAL',
-        email: identificacao.EmailParlamentar || null,
-        phone: null,
-      };
-    });
+      const codigo = identificacao.CodigoParlamentar;
+      
+      try {
+        // Fetch detailed senator info including contact
+        const detailResponse = await fetch(
+          `https://legis.senado.leg.br/dadosabertos/senador/${codigo}`,
+          { headers: { 'Accept': 'application/json' } }
+        );
+        
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json();
+          const parlamentar = detailData?.DetalheParlamentar?.Parlamentar;
+          const dadosBasicos = parlamentar?.DadosBasicosParlamentar;
+          const telefones = parlamentar?.Telefones?.Telefone;
+          
+          let phone = null;
+          if (telefones) {
+            const telefoneArray = Array.isArray(telefones) ? telefones : [telefones];
+            const gabinete = telefoneArray.find((t: any) => t.OrdemPublicacao === '1');
+            phone = gabinete?.NumeroTelefone || telefoneArray[0]?.NumeroTelefone || null;
+          }
+          
+          detailedSenators.push({
+            external_id: `SEN_${codigo}`,
+            name: identificacao.NomeParlamentar || identificacao.NomeCompletoParlamentar,
+            role: 'SENADOR',
+            photo_url: identificacao.UrlFotoParlamentar || null,
+            party: identificacao.SiglaPartidoParlamentar || null,
+            uf: identificacao.UfParlamentar || uf,
+            city: dadosBasicos?.NaturalMunicipio || null,
+            category_tags: [],
+            scope: 'FEDERAL',
+            email: identificacao.EmailParlamentar || null,
+            phone: phone,
+          });
+        } else {
+          // Fallback to basic info
+          detailedSenators.push({
+            external_id: `SEN_${codigo}`,
+            name: identificacao.NomeParlamentar || identificacao.NomeCompletoParlamentar,
+            role: 'SENADOR',
+            photo_url: identificacao.UrlFotoParlamentar || null,
+            party: identificacao.SiglaPartidoParlamentar || null,
+            uf: identificacao.UfParlamentar || uf,
+            city: null,
+            category_tags: [],
+            scope: 'FEDERAL',
+            email: identificacao.EmailParlamentar || null,
+            phone: null,
+          });
+        }
+      } catch (detailError) {
+        // Fallback to basic info on error
+        detailedSenators.push({
+          external_id: `SEN_${codigo}`,
+          name: identificacao.NomeParlamentar || identificacao.NomeCompletoParlamentar,
+          role: 'SENADOR',
+          photo_url: identificacao.UrlFotoParlamentar || null,
+          party: identificacao.SiglaPartidoParlamentar || null,
+          uf: identificacao.UfParlamentar || uf,
+          city: null,
+          category_tags: [],
+          scope: 'FEDERAL',
+          email: identificacao.EmailParlamentar || null,
+          phone: null,
+        });
+      }
+    }
+    
+    return detailedSenators;
   } catch (error) {
     console.error('Erro ao buscar senadores:', error);
     return [];
