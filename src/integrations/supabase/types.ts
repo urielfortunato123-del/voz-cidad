@@ -135,7 +135,7 @@ export type Database = {
           {
             foreignKeyName: "atlas_contacts_person_id_fkey"
             columns: ["person_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "atlas_people"
             referencedColumns: ["id"]
           },

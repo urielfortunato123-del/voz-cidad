@@ -31,6 +31,9 @@ import AdminAgencies from "./pages/admin/AdminAgencies";
 import AdminModeration from "./pages/admin/AdminModeration";
 import AdminReportDetail from "./pages/admin/AdminReportDetail";
 
+// Atlas pages
+import { AtlasDashboard, AtlasFederal } from "./pages/Atlas";
+
 const queryClient = new QueryClient();
 
 function InitialRedirect() {
@@ -71,6 +74,10 @@ const App = () => (
               <Route path="/estatisticas" element={<Dashboard />} />
               <Route path="/mapa" element={<ReportsMap />} />
               <Route path="/instalar" element={<InstallPage />} />
+              
+              {/* Atlas routes */}
+              <Route path="/atlas" element={<AtlasDashboard />} />
+              <Route path="/atlas/federal" element={<AtlasFederal />} />
               
               {/* Admin routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
