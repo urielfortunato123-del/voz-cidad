@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Search, User, Building2, ChevronDown, Check, X, Loader2 } from 'lucide-react';
+import { Search, User, Building2, ChevronDown, Check, X, Loader2, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePublicOfficials, PublicOfficial } from '@/hooks/usePublicOfficials';
 import { cn } from '@/lib/utils';
 
@@ -218,6 +219,37 @@ export function PublicOfficialSelector({
                                   {official.role_label}
                                   {official.party && ` • ${official.party}`}
                                 </p>
+                                {/* Contact indicators */}
+                                <div className="flex items-center gap-2 mt-1">
+                                  {official.email && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center gap-1 text-xs text-primary/70">
+                                            <Mail className="h-3 w-3" />
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p className="text-xs">{official.email}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  {official.phone && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center gap-1 text-xs text-primary/70">
+                                            <Phone className="h-3 w-3" />
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p className="text-xs">{official.phone}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
                               </div>
                               {selectedOfficial?.external_id === official.external_id && (
                                 <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0">
