@@ -378,6 +378,38 @@ export function PublicOfficialSelector({
                     <SelectItem value="SENADOR">Senador(a)</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* Preview do político sendo adicionado */}
+                {newOfficialName.trim() && newOfficialRole && (
+                  <div className="mt-3 p-3 rounded-lg bg-background/50 border border-border/40">
+                    <p className="text-xs text-muted-foreground mb-2">Prévia:</p>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-11 h-11 border-2 border-background ring-1 ring-primary/30">
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary font-medium">
+                          {newOfficialName.trim().split(' ').slice(0, 2).map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate text-primary">{newOfficialName.trim()}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {ROLE_LABELS[newOfficialRole]}
+                          {MUNICIPAL_ROLES.includes(newOfficialRole) && city && ` • ${city}`}
+                          {ESTADUAL_ROLES.includes(newOfficialRole) && uf && ` • ${uf}`}
+                        </p>
+                        <Badge variant="outline" className={cn(
+                          'mt-1 text-xs',
+                          MUNICIPAL_ROLES.includes(newOfficialRole) && SCOPE_COLORS['MUNICIPAL'],
+                          ESTADUAL_ROLES.includes(newOfficialRole) && SCOPE_COLORS['ESTADUAL'],
+                          FEDERAL_ROLES.includes(newOfficialRole) && SCOPE_COLORS['FEDERAL']
+                        )}>
+                          {MUNICIPAL_ROLES.includes(newOfficialRole) && 'Municipal'}
+                          {ESTADUAL_ROLES.includes(newOfficialRole) && 'Estadual'}
+                          {FEDERAL_ROLES.includes(newOfficialRole) && 'Federal'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex gap-2">
                   <Button
