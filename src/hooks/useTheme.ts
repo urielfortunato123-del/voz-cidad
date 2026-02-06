@@ -8,9 +8,10 @@ export function useTheme() {
       const saved = localStorage.getItem('voz-cidade-theme') as Theme;
       if (saved) return saved;
       
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      // Default to dark mode for modern aesthetic
+      return 'dark';
     }
-    return 'light';
+    return 'dark';
   });
   
   useEffect(() => {
