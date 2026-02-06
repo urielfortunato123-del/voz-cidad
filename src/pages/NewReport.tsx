@@ -10,6 +10,8 @@ import { BottomNav } from '@/components/BottomNav';
 import { FileUploader } from '@/components/FileUploader';
 import { VoiceInput } from '@/components/VoiceInput';
 import { ReportAnalyzer } from '@/components/AIAssistant';
+import { PublicOfficialSelector } from '@/components/PublicOfficialSelector';
+import { PublicOfficial } from '@/hooks/usePublicOfficials';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -62,6 +64,7 @@ export default function NewReport() {
   const location = getSelectedLocation();
   const [files, setFiles] = useState<File[]>([]);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedOfficial, setSelectedOfficial] = useState<PublicOfficial | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
   
   const createReport = useCreateReport();
@@ -145,6 +148,7 @@ export default function NewReport() {
       author_name: data.author_name || null,
       author_contact: data.author_contact || null,
       show_name_publicly: data.show_name_publicly,
+      target_official_id: selectedOfficial?.id || null,
     };
     
     // If offline, save locally
@@ -273,6 +277,17 @@ export default function NewReport() {
                 </SelectContent>
               </Select>
             </div>
+          )}
+          
+          {/* Public Official Selector - shows after category is selected */}
+          {selectedCategory && (
+            <PublicOfficialSelector
+              uf={location?.uf || null}
+              city={location?.city || null}
+              category={selectedCategory}
+              selectedOfficial={selectedOfficial}
+              onSelect={setSelectedOfficial}
+            />
           )}
           
           {/* Title */}
