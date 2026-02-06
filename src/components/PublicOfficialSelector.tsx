@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, User, Building2, ChevronDown, Check, X, Loader2, Mail, Phone } from 'lucide-react';
+import { Search, User, Building2, ChevronDown, Check, X, Loader2, Mail, Phone, Plus, UserPlus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,8 +7,26 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { usePublicOfficials, PublicOfficial } from '@/hooks/usePublicOfficials';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+
+export interface PublicOfficial {
+  id: string;
+  external_id: string;
+  name: string;
+  role: string;
+  role_label: string;
+  photo_url: string | null;
+  party: string | null;
+  uf: string;
+  city: string | null;
+  category_tags: string[];
+  scope: 'MUNICIPAL' | 'ESTADUAL' | 'FEDERAL';
+  email: string | null;
+  phone: string | null;
+}
 
 interface PublicOfficialSelectorProps {
   uf: string | null;
@@ -31,6 +49,30 @@ const SCOPE_COLORS: Record<string, string> = {
   'FEDERAL': 'bg-green-500/10 text-green-600 dark:text-green-400',
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  'VEREADOR': 'Vereador(a)',
+  'PREFEITO': 'Prefeito(a)',
+  'DEPUTADO_ESTADUAL': 'Deputado(a) Estadual',
+  'DEPUTADO_FEDERAL': 'Deputado(a) Federal',
+  'SENADOR': 'Senador(a)',
+  'GOVERNADOR': 'Governador(a)',
+  'SECRETARIO_SAUDE': 'Secretário(a) de Saúde',
+  'SECRETARIO_EDUCACAO': 'Secretário(a) de Educação',
+  'SECRETARIO_OBRAS': 'Secretário(a) de Obras',
+  'SECRETARIO_SERVICOS_URBANOS': 'Secretário(a) de Serviços Urbanos',
+  'SECRETARIO_MEIO_AMBIENTE': 'Secretário(a) de Meio Ambiente',
+  'SECRETARIO_SEGURANCA': 'Secretário(a) de Segurança',
+  'MINISTRO_SAUDE': 'Ministro(a) da Saúde',
+  'MINISTRO_EDUCACAO': 'Ministro(a) da Educação',
+  'MINISTRO_MEIO_AMBIENTE': 'Ministro(a) do Meio Ambiente',
+  'MINISTRO_JUSTICA': 'Ministro(a) da Justiça',
+  'PRESIDENTE': 'Presidente',
+};
+
+const MUNICIPAL_ROLES = ['PREFEITO', 'VEREADOR', 'SECRETARIO_SAUDE', 'SECRETARIO_EDUCACAO', 'SECRETARIO_OBRAS', 'SECRETARIO_SERVICOS_URBANOS', 'SECRETARIO_MEIO_AMBIENTE', 'SECRETARIO_SEGURANCA'];
+const ESTADUAL_ROLES = ['GOVERNADOR', 'DEPUTADO_ESTADUAL'];
+const FEDERAL_ROLES = ['PRESIDENTE', 'SENADOR', 'DEPUTADO_FEDERAL'];
+
 export function PublicOfficialSelector({
   uf,
   city,
@@ -41,18 +83,55 @@ export function PublicOfficialSelector({
 }: PublicOfficialSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const { data: officials = [], isLoading, error } = usePublicOfficials({
-    uf,
-    city,
-    category,
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newOfficialName, setNewOfficialName] = useState('');
+  const [newOfficialRole, setNewOfficialRole] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Fetch officials from database directly
+  const { data: officials = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['public-officials-direct', uf, city],
+    queryFn: async (): Promise<PublicOfficial[]> => {
+      if (!uf) return [];
+
+      // Fetch from public_officials table directly
+      let query = supabase
+        .from('public_officials')
+        .select('*')
+        .eq('uf', uf)
+        .eq('active', true);
+
+      // Include both city-specific and state-wide officials
+      if (city) {
+        query = query.or(`city.eq.${city},city.is.null`);
+      }
+
+      const { data, error } = await query
+        .order('scope')
+        .order('role')
+        .order('name');
+
+      if (error) {
+        console.error('Erro ao buscar políticos:', error);
+        throw error;
+      }
+
+      return (data || []).map(off => ({
+        ...off,
+        role_label: ROLE_LABELS[off.role] || off.role,
+        scope: off.scope as 'MUNICIPAL' | 'ESTADUAL' | 'FEDERAL',
+      }));
+    },
+    enabled: !!uf,
+    staleTime: 1000 * 60 * 30, // 30 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
   });
 
   // Group officials by scope
   const groupedOfficials = useMemo(() => {
     const filtered = officials.filter(off => 
       off.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      off.role_label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ROLE_LABELS[off.role]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       off.party?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -73,6 +152,79 @@ export function PublicOfficialSelector({
 
   const totalOfficials = officials.length;
   const hasOfficials = totalOfficials > 0;
+
+  // Handle adding a new official
+  const handleAddOfficial = async () => {
+    if (!newOfficialName.trim() || !newOfficialRole || !uf) return;
+
+    setIsCreating(true);
+
+    try {
+      // Determine scope based on role
+      let scope: 'MUNICIPAL' | 'ESTADUAL' | 'FEDERAL' = 'MUNICIPAL';
+      if (ESTADUAL_ROLES.includes(newOfficialRole)) scope = 'ESTADUAL';
+      if (FEDERAL_ROLES.includes(newOfficialRole)) scope = 'FEDERAL';
+
+      const { data, error } = await supabase
+        .from('public_officials')
+        .insert({
+          external_id: `MANUAL_${Date.now()}`,
+          name: newOfficialName.trim(),
+          role: newOfficialRole,
+          uf: uf,
+          city: MUNICIPAL_ROLES.includes(newOfficialRole) ? city : null,
+          scope: scope,
+          category_tags: category ? [category] : [],
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Select the newly created official
+      const newOfficial: PublicOfficial = {
+        ...data,
+        role_label: ROLE_LABELS[data.role] || data.role,
+        scope: data.scope as 'MUNICIPAL' | 'ESTADUAL' | 'FEDERAL',
+      };
+
+      onSelect(newOfficial);
+      setShowAddForm(false);
+      setNewOfficialName('');
+      setNewOfficialRole('');
+      setIsOpen(false);
+      refetch();
+    } catch (err) {
+      console.error('Erro ao adicionar político:', err);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Get available roles based on city/uf
+  const availableRoles = useMemo(() => {
+    const roles: { value: string; label: string; scope: string }[] = [];
+    
+    // Always add federal roles
+    FEDERAL_ROLES.forEach(role => {
+      roles.push({ value: role, label: ROLE_LABELS[role], scope: 'FEDERAL' });
+    });
+    
+    // Always add state roles
+    ESTADUAL_ROLES.forEach(role => {
+      roles.push({ value: role, label: ROLE_LABELS[role], scope: 'ESTADUAL' });
+    });
+    
+    // Add municipal roles if city is selected
+    if (city) {
+      MUNICIPAL_ROLES.forEach(role => {
+        roles.push({ value: role, label: ROLE_LABELS[role], scope: 'MUNICIPAL' });
+      });
+    }
+    
+    return roles;
+  }, [city]);
 
   if (!uf) {
     return null;
@@ -119,7 +271,7 @@ export function PublicOfficialSelector({
                   <>
                     <p className="font-medium text-sm">Direcionar para político (opcional)</p>
                     <p className="text-xs text-muted-foreground">
-                      {isLoading ? 'Carregando...' : hasOfficials ? `${totalOfficials} políticos encontrados` : 'Nenhum político encontrado'}
+                      {isLoading ? 'Carregando...' : hasOfficials ? `${totalOfficials} políticos encontrados` : 'Clique para adicionar'}
                     </p>
                   </>
                 )}
@@ -150,8 +302,8 @@ export function PublicOfficialSelector({
 
         <CollapsibleContent className="mt-2 animate-fade-in">
           <div className="border border-border/40 rounded-xl bg-card overflow-hidden" style={{ boxShadow: 'var(--shadow-elevated)' }}>
-            {/* Search */}
-            <div className="p-3 border-b border-border/40 bg-muted/30">
+            {/* Search and Add Button */}
+            <div className="p-3 border-b border-border/40 bg-muted/30 space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -161,7 +313,91 @@ export function PublicOfficialSelector({
                   className="pl-9 bg-background"
                 />
               </div>
+              
+              {!showAddForm && (
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="w-full justify-center gap-2 border-dashed"
+                  onClick={() => setShowAddForm(true)}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Adicionar político manualmente
+                </Button>
+              )}
             </div>
+
+            {/* Add Form */}
+            {showAddForm && (
+              <div className="p-3 border-b border-border/40 bg-primary/5 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                  <UserPlus className="h-4 w-4" />
+                  Adicionar novo político
+                </div>
+                
+                <Input
+                  placeholder="Nome do político (ex: Suellen Silva)"
+                  value={newOfficialName}
+                  onChange={(e) => setNewOfficialName(e.target.value)}
+                  className="bg-background"
+                />
+                
+                <Select value={newOfficialRole} onValueChange={setNewOfficialRole}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Selecione o cargo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {city && (
+                      <>
+                        <SelectItem value="PREFEITO" className="text-blue-600">
+                          🏛️ Prefeito(a) de {city}
+                        </SelectItem>
+                        <SelectItem value="VEREADOR">Vereador(a)</SelectItem>
+                        <SelectItem value="SECRETARIO_SAUDE">Secretário(a) de Saúde</SelectItem>
+                        <SelectItem value="SECRETARIO_EDUCACAO">Secretário(a) de Educação</SelectItem>
+                        <SelectItem value="SECRETARIO_OBRAS">Secretário(a) de Obras</SelectItem>
+                      </>
+                    )}
+                    <SelectItem value="GOVERNADOR" className="text-amber-600">
+                      🏛️ Governador(a) de {uf}
+                    </SelectItem>
+                    <SelectItem value="DEPUTADO_ESTADUAL">Deputado(a) Estadual</SelectItem>
+                    <SelectItem value="DEPUTADO_FEDERAL">Deputado(a) Federal</SelectItem>
+                    <SelectItem value="SENADOR">Senador(a)</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setNewOfficialName('');
+                      setNewOfficialRole('');
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    disabled={!newOfficialName.trim() || !newOfficialRole || isCreating}
+                    onClick={handleAddOfficial}
+                  >
+                    {isCreating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Adicionar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Officials list */}
             <ScrollArea className="h-[300px]">
@@ -171,14 +407,17 @@ export function PublicOfficialSelector({
                   <span className="ml-2 text-muted-foreground">Buscando políticos...</span>
                 </div>
               ) : error ? (
-                <div className="p-4 text-center text-destructive">
-                  Erro ao carregar políticos. Tente novamente.
+                <div className="p-4 text-center">
+                  <p className="text-destructive mb-2">Erro ao carregar políticos.</p>
+                  <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    Tentar novamente
+                  </Button>
                 </div>
-              ) : !hasOfficials ? (
+              ) : !hasOfficials && !showAddForm ? (
                 <div className="p-8 text-center text-muted-foreground">
                   <Building2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Nenhum político encontrado para esta localidade.</p>
-                  <p className="text-sm mt-1">Os dados serão atualizados em breve.</p>
+                  <p>Nenhum político cadastrado para esta localidade.</p>
+                  <p className="text-sm mt-1">Use o botão acima para adicionar.</p>
                 </div>
               ) : (
                 <div className="p-2 space-y-4">
@@ -195,7 +434,7 @@ export function PublicOfficialSelector({
                         <div className="space-y-1">
                           {scopeOfficials.map((official) => (
                             <button
-                              key={official.external_id}
+                              key={official.id}
                               type="button"
                               onClick={() => {
                                 onSelect(official);
@@ -204,7 +443,7 @@ export function PublicOfficialSelector({
                               className={cn(
                                 'w-full flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 text-left group/item',
                                 'hover:bg-gradient-to-r hover:from-accent/80 hover:to-transparent',
-                                selectedOfficial?.external_id === official.external_id && 'bg-primary/10 ring-1 ring-primary/20'
+                                selectedOfficial?.id === official.id && 'bg-primary/10 ring-1 ring-primary/20'
                               )}
                             >
                               <Avatar className="w-11 h-11 border-2 border-background ring-1 ring-border/40 group-hover/item:ring-primary/30 transition-all duration-200">
@@ -217,6 +456,7 @@ export function PublicOfficialSelector({
                                 <p className="font-medium text-sm truncate group-hover/item:text-primary transition-colors">{official.name}</p>
                                 <p className="text-xs text-muted-foreground truncate">
                                   {official.role_label}
+                                  {official.city && ` • ${official.city}`}
                                   {official.party && ` • ${official.party}`}
                                 </p>
                                 {/* Contact indicators */}
@@ -251,7 +491,7 @@ export function PublicOfficialSelector({
                                   )}
                                 </div>
                               </div>
-                              {selectedOfficial?.external_id === official.external_id && (
+                              {selectedOfficial?.id === official.id && (
                                 <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0">
                                   <Check className="h-3.5 w-3.5 text-primary-foreground" />
                                 </div>
