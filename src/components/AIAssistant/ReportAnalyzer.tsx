@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Sparkles, FileSearch, Scale, Wand2, Languages, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, FileSearch, Scale, Wand2, Languages, Loader2, ChevronDown, ChevronUp, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAIAssistant } from '@/hooks/useAIAssistant';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
@@ -142,16 +143,22 @@ export function ReportAnalyzer({ category, title, description, onApplySuggestion
 
       {/* Profile selector - separate row */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Perfil:</span>
-        <select
-          value={selectedProfile}
-          onChange={(e) => setSelectedProfile(e.target.value as UserProfile)}
-          className="flex-1 h-9 text-xs rounded-md border border-input bg-background px-3 appearance-none cursor-pointer"
-        >
-          {Object.entries(PROFILE_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <User className="h-3.5 w-3.5" />
+          <span>Perfil:</span>
+        </div>
+        <Select value={selectedProfile} onValueChange={(value) => setSelectedProfile(value as UserProfile)}>
+          <SelectTrigger className="flex-1 h-9 text-xs">
+            <SelectValue placeholder="Selecione o perfil" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(PROFILE_LABELS).map(([key, label]) => (
+              <SelectItem key={key} value={key} className="text-xs">
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {isDisabled && (
