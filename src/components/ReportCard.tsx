@@ -26,7 +26,10 @@ export function ReportCard({ report, className }: ReportCardProps) {
   
   return (
     <Card 
-      className={cn('card-elevated cursor-pointer active:scale-[0.98] transition-transform', className)}
+      className={cn(
+        'card-interactive group',
+        className
+      )}
       onClick={() => navigate(`/denuncia/${report.id}`)}
     >
       <CardContent className="p-4">
@@ -35,27 +38,27 @@ export function ReportCard({ report, className }: ReportCardProps) {
           <StatusBadge status={report.status} />
         </div>
         
-        <h3 className="font-semibold text-foreground mb-2 line-clamp-2">
+        <h3 className="font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors duration-200">
           {displayTitle}
         </h3>
         
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md">
             <Calendar className="h-3.5 w-3.5" />
             <span>{format(new Date(report.created_at), "dd/MM/yy", { locale: ptBR })}</span>
           </div>
           
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md">
             {report.is_anonymous ? (
               <EyeOff className="h-3.5 w-3.5" />
             ) : (
               <User className="h-3.5 w-3.5" />
             )}
-            <span>{authorDisplay}</span>
+            <span className="truncate max-w-[120px]">{authorDisplay}</span>
           </div>
           
           {report.confirmations_count > 0 && (
-            <div className="flex items-center gap-1 text-primary">
+            <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-md font-medium">
               <ThumbsUp className="h-3.5 w-3.5" />
               <span>{report.confirmations_count}</span>
             </div>
