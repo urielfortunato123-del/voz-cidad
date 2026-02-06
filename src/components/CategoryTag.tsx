@@ -1,4 +1,5 @@
 import { Heart, Construction, GraduationCap, Building, TreePine, Shield, AlertTriangle } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { CATEGORIES, type CategoryKey } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
@@ -27,9 +28,10 @@ interface CategoryTagProps {
   showIcon?: boolean;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  animated?: boolean;
 }
 
-export function CategoryTag({ category, showIcon = true, size = 'md', className }: CategoryTagProps) {
+export function CategoryTag({ category, showIcon = true, size = 'md', className, animated = true }: CategoryTagProps) {
   const Icon = ICONS[category];
   const categoryInfo = CATEGORIES[category];
   
@@ -44,18 +46,44 @@ export function CategoryTag({ category, showIcon = true, size = 'md', className 
     md: 14,
     lg: 16,
   };
+
+  const content = (
+    <>
+      {showIcon && Icon && <Icon size={iconSizes[size]} />}
+      {categoryInfo?.label || category}
+    </>
+  );
+
+  if (!animated) {
+    return (
+      <span 
+        className={cn(
+          'inline-flex items-center rounded-full font-medium border transition-all duration-200',
+          COLORS[category],
+          sizeClasses[size],
+          className
+        )}
+      >
+        {content}
+      </span>
+    );
+  }
   
   return (
-    <span 
+    <motion.span 
       className={cn(
         'inline-flex items-center rounded-full font-medium border',
         COLORS[category],
         sizeClasses[size],
         className
       )}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.05, y: -1 }}
+      whileTap={{ scale: 0.95 }}
+      transition={{ type: "spring", stiffness: 400, damping: 20 }}
     >
-      {showIcon && Icon && <Icon size={iconSizes[size]} />}
-      {categoryInfo?.label || category}
-    </span>
+      {content}
+    </motion.span>
   );
 }

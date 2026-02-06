@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, PlusCircle, List, Building2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
@@ -14,25 +15,43 @@ export function BottomNav() {
   const location = useLocation();
   
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md border-t border-border/50 safe-area-bottom">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
           const isActive = location.pathname === path;
           
           return (
-            <button
+            <motion.button
               key={path}
               onClick={() => navigate(path)}
+              whileTap={{ scale: 0.92 }}
               className={cn(
-                'flex flex-col items-center gap-1 py-3 px-4 min-w-[64px] transition-colors',
+                'relative flex flex-col items-center gap-1 py-3 px-4 min-w-[64px] transition-colors',
                 isActive 
                   ? 'text-primary' 
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <Icon className={cn('h-6 w-6', isActive && 'fill-current')} />
+              <AnimatePresence>
+                {isActive && (
+                  <motion.span
+                    layoutId="bottomNavIndicator"
+                    className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary rounded-full"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+              </AnimatePresence>
+              <motion.div
+                animate={{ scale: isActive ? 1.1 : 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              >
+                <Icon className={cn('h-6 w-6', isActive && 'fill-current')} />
+              </motion.div>
               <span className="text-xs font-medium">{label}</span>
-            </button>
+            </motion.button>
           );
         })}
       </div>
